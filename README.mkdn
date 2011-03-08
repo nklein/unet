@@ -1,0 +1,23 @@
+;; Copyright (c) 2011 nklein software
+;; MIT License. See included LICENSE.txt file for licensing details.
+
+# UNet v0.1.2011.03.07
+
+Patrick Stein <pat@nklein.com>
+
+* [Overview](#overview)
+  
+## <a name="overview">Overview</a>
+
+This library builds upon the [USerial library][userial] and
+the [IOLib library][iolib] to provide a datagram networking
+layer with variable quality of service.  The UNet library
+wraps the data given to it so that it can provide the
+quality of service desired.  As such, the datagrams generated
+by the UNet library are not suitable for interfacing to
+non-UNet applications.  If you wish to communicate with an
+existing service, you should use the IOLib library and
+USerial library directly.
+
+  [userial]: http://nklein.com/software/unet/userial/
+  [iolib]:   http://common-lisp.net/project/iolib/
