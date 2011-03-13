@@ -9,5 +9,6 @@
 	   :channel
 	     :channel-socket
 	     :channel-recipients
-	     :channel-ordered-p
+	     :channel-add-recipient
+	     :channel-remove-recipient
 	   :send-message))
