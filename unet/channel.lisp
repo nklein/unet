@@ -11,9 +11,12 @@
                      :channel-id (error "Must specify channel-id")
 		     :recipients nil))
 
+(userial:make-uint-serializer :channel-id 2)
+(userial:make-uint-serializer :sequence-number 4)
+
 (defstruct channel-recipient
   (sequence-number 0 :type fixnum)
-  (un-acked nil))
+  (properties nil :type list))
 
 (declaim (ftype (function (channel recipient)
 			  (values channel-recipient boolean))
@@ -38,22 +41,11 @@
 
 (defgeneric wrap-chunk (channel message channel-recipient out))
 
-(defmethod wrap-chunk :before ((channel channel) chunk channel-recipient out)
-  (declare (type channel channel)
-	   (type userial:buffer chunk out)
-	   (type channel-recipient channel-recipient))
-  (userial:serialize* (:channel-id      (channel-id channel)
-		       :sequence-number (channel-recipient-sequence-number
-					   channel-recipient))
-		      :buffer out))
-
 (defmethod wrap-chunk ((channel channel) chunk channel-recipient out)
   (declare (type channel channel)
 	   (type userial:buffer chunk out)
 	   (type channel-recipient channel-recipient))
-  (userial:serialize* (:uint16 (userial:buffer-length :buffer chunk)
-		       :bytes  chunk)
-		      :buffer out))
+  (userial:serialize :bytes chunk :buffer out))
 
 (declaim (ftype (function (channel) list) channel-recipients))
 (defun channel-recipients (channel)
@@ -84,11 +76,16 @@
 	   (type userial:buffer buffer)
 	   (type recipient recipient)
 	   (type channel-recipient channel-recipient))
-  (iolib:send-to (channel-socket channel)
-		 (wrap-chunk channel buffer channel-recipient
-			     (userial:make-buffer))
-		 :remote-host (recipient-host recipient)
-		 :remote-port (recipient-port recipient)))
+  (let ((buf (userial:make-buffer)))
+    (userial:serialize* (:channel-id (channel-id channel)
+			 :sequence-number (channel-recipient-sequence-number
+					     channel-recipient))
+			:buffer buf)
+    (wrap-chunk channel buffer channel-recipient buf)
+    (iolib:send-to (channel-socket channel)
+		   buf
+		   :remote-host (recipient-host recipient)
+		   :remote-port (recipient-port recipient))))
 
 (defun send-chunk-to-recipients (channel chunk to)
   (declare (type channel channel)

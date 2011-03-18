@@ -6,6 +6,7 @@
 Patrick Stein <pat@nklein.com>
 
 * [Overview](#overview)
+* [Recipients](#recipients)
   
 ## <a name="overview">Overview</a>
 
@@ -21,3 +22,13 @@ USerial library directly.
 
   [userial]: http://nklein.com/software/unet/userial/
   [iolib]:   http://common-lisp.net/project/iolib/
+
+## <a name="recipients">Recipient</a>
+
+If the UNet library is to deliver datagrams, it needs to be told a
+hostname and port for each recipient.
+
+    (make-instance 'recipient :hostname "localhost" :port 26354)
+
+A hostname must be specified when creating an instance.  The port, however,
+is optional.  If unspecified, the port is assumed to be 26354.
