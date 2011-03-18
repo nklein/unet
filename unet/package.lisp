@@ -3,9 +3,13 @@
 
 (defpackage :unet
   (:use :cl)
-  (:export :recipient
-	     :recipient-host
-	     :recipient-port
+  (:export :invalid-hostname-error
+	     :invalid-hostname-datum
+	     :invalid-hostname-reason
+	   :invalid-port-error
+	     :invalid-port-datum
+	     :invalid-port-expected-type
+	   :recipient
 	   :channel
 	     :channel-socket
 	     :channel-recipients

@@ -11,6 +11,7 @@
   :components ((:module "unet"
                 :serial t
 		:components ((:file "package")
+                             (:file "errors")
 			     (:file "recipient")
 			     (:file "channel")))
 	       (:static-file "README.mkdn")
