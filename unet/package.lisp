@@ -4,15 +4,13 @@
 (defpackage :unet
   (:use :cl)
   (:export :invalid-hostname-error
-	     :invalid-hostname-datum
-	     :invalid-hostname-reason
+	     :invalid-hostname-given
+	     :no-such-host-error
+	     :transient-name-service-error
+	     :permanent-name-service-error
 	   :invalid-port-error
 	     :invalid-port-datum
 	     :invalid-port-expected-type
 	   :recipient
-	   :channel
-	     :channel-socket
-	     :channel-recipients
-	     :channel-add-recipient
-	     :channel-remove-recipient
-	   :send-message))
+	   :server
+	   :channel))

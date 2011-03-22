@@ -13,6 +13,7 @@
 		:components ((:file "package")
                              (:file "errors")
 			     (:file "recipient")
+			     (:file "server")
 			     (:file "channel")))
 	       (:static-file "README.mkdn")
 	       (:static-file "LICENSE.txt")))

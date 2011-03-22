@@ -32,3 +32,9 @@ hostname and port for each recipient.
 
 A hostname must be specified when creating an instance.  The port, however,
 is optional.  If unspecified, the port is assumed to be 26354.
+
+If the constructor for the `recipient` class is unable to determine
+the IP address for the given hostname, it will throw one of the
+following errors.
+
+   * 

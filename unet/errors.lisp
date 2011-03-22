@@ -1,0 +1,67 @@
+;; Copyright (c) 2011 nklein software
+;; MIT License. See included LICENSE.txt file for licensing details.
+
+(in-package :unet)
+
+;; ======================================================================
+;; invalid-hostname exception
+;; ======================================================================
+(define-condition invalid-hostname-error (error)
+  ((given :initarg :given :reader invalid-hostname-given))
+  (:documentation "Error condition raised when a hostname is invalid"))
+
+(defmethod print-object ((exception invalid-hostname-error) stream)
+  (print-unreadable-object (exception stream :type t)
+    (format stream ":GIVEN ~S"
+	           (invalid-hostname-given exception))))
+
+;; ======================================================================
+;; no-hostname-given-error
+;; ======================================================================
+(define-condition no-hostname-given-error (invalid-hostname-error)
+  ()
+  (:documentation "Error condition raised when no hostname was specified"))
+
+;; ======================================================================
+;; no-such-host-error
+;; ======================================================================
+(define-condition no-such-host-error (invalid-hostname-error)
+  ()
+  (:documentation "Error condition raised when no address is found for a hostname"))
+
+;; ======================================================================
+;; transient-name-service-error
+;; ======================================================================
+(define-condition transient-name-service-error (invalid-hostname-error)
+  ()
+  (:documentation "Error condition raised when the naming service has a transient failure"))
+
+;; ======================================================================
+;; permanent-name-service-error
+;; ======================================================================
+(define-condition permanent-name-service-error (error)
+  ()
+  (:documentation "Error condition raised when the naming service is unable to resolve any hostnames at all"))
+
+(defmethod print-object ((exception permanent-name-service-error) stream)
+  (print-unreadable-object (exception stream :type t)))
+
+;; ======================================================================
+;; invalid-port exception
+;; ======================================================================
+(define-condition invalid-port-error (type-error)
+  ()
+  (:documentation "Error condition raised when a port number is invalid")
+  (:default-initargs :expected-type '(unsigned-byte 16)))
+
+(defun invalid-port-datum (exception)
+  (type-error-datum exception))
+
+(defun invalid-port-expected-type (exception)
+  (type-error-expected-type exception))
+
+(defmethod print-object ((exception invalid-port-error) stream)
+  (print-unreadable-object (exception stream :type t)
+    (format stream ":DATUM ~S :EXPECTED-TYPE ~S"
+	           (invalid-port-datum exception)
+		   (invalid-port-expected-type exception))))

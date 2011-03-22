@@ -3,116 +3,69 @@
 
 (in-package :unet)
 
-(defclass channel ()
-  ((socket     :initarg :socket     :reader channel-socket)
-   (channel-id :initarg :channel-id :reader channel-id)
-   (recipients :initform (make-hash-table)))
-  (:default-initargs :socket     (error "Must specify socket")
-                     :channel-id (error "Must specify channel-id")
-		     :recipients nil))
+;; ----------------------------------------------------------------------
+;; define-channel
+;; ----------------------------------------------------------------------
+(defmacro define-channel (channel-class channel-recipient-class
+			  (&rest super-classes)
+			  (&rest slots)
+			  &rest options)
+  `(progn
+     (defclass ,channel-class ,super-classes ,slots ,@options)
+     (make-channel-recipient-class ,super-classes ,channel-recipient-class)
+     (defmethod recipient-type ((channel-type (eql ',channel-class)))
+       ',channel-recipient-class)))
 
-(userial:make-uint-serializer :channel-id 2)
-(userial:make-uint-serializer :sequence-number 4)
+;; ----------------------------------------------------------------------
+;; recipient-type method used to prepare base-types for recipients
+;; ----------------------------------------------------------------------
+(defgeneric recipient-type (channel-type))
+(defmethod recipient-type ((channel-type (eql 'channel)))
+  'channel-recipient)
 
-(defstruct channel-recipient
-  (sequence-number 0 :type fixnum)
-  (properties nil :type list))
+;; ----------------------------------------------------------------------
+;; make-channel-recipient-class
+;; ----------------------------------------------------------------------
+(defmacro make-channel-recipient-class ((&rest super-classes)
+					channel-recipient-class)
+  `(defclass ,channel-recipient-class ,(mapcar #'recipient-type super-classes)
+     ()))
 
-(declaim (ftype (function (channel recipient)
-			  (values channel-recipient boolean))
-		get-channel-recipient))
-(defun get-channel-recipient (channel recipient)
-  (declare (type channel channel)
-	   (type recipient recipient))
-  (with-slots (recipients) channel
-    (multiple-value-bind (ch-rr present-p)
-	(gethash recipient recipients (make-channel-recipient))
-      (declare (type channel-recipient ch-rr))
-      (unless present-p
-	(setf (gethash recipient recipients) ch-rr))
-      (values ch-rr present-p))))
+;; ======================================================================
+;; channel class
+;; ======================================================================
+(define-channel channel channel-recipient ()
+  ((payload-key :initarg :payload-key)
+   (recipients :initform (make-hash-table) :accessor channel-recipients))
+  (:default-initargs :payload-key :bytes))
 
-(defmethod initialize-instance :after ((channel channel)
-				       &key recipients &allow-other-keys)
-  (mapc #'(lambda (rr)
-	    (declare (type recipient rr))
-	    (nth-value 0 (get-channel-recipient channel rr)))
-	recipients))
+(defmethod print-object ((obj channel) stream)
+  (print-unreadable-object (obj stream :type t :identity t)
+    (with-slots (payload-key recipients) obj
+      (format stream ":PAYLOAD-KEY ~S :RECIPIENTS ~S"
+	      payload-key recipients))))
 
-(defgeneric wrap-chunk (channel message channel-recipient out))
+(defmethod print-object ((obj channel-recipient) stream)
+  (print-unreadable-object (obj stream :type t :identity t)))
 
-(defmethod wrap-chunk ((channel channel) chunk channel-recipient out)
-  (declare (type channel channel)
-	   (type userial:buffer chunk out)
-	   (type channel-recipient channel-recipient))
-  (userial:serialize :bytes chunk :buffer out))
+;; ----------------------------------------------------------------------
+;; prepare-packet and handle-packet generics
+;; ----------------------------------------------------------------------
+(defgeneric prepare-packet (channel recipient payload buffer))
+(defgeneric parse-packet (channel sender buffer))
 
-(declaim (ftype (function (channel) list) channel-recipients))
-(defun channel-recipients (channel)
-  (maphash #'(lambda (key val)
-	       (declare (ignore val))
-	       key)
-	   (slot-value channel 'recipients)))
+;; ----------------------------------------------------------------------
+;; base method for prepare-packet
+;; ----------------------------------------------------------------------
+(defmethod prepare-packet (channel recipient payload buffer)
+  (declare (ignore recipient))
+  (with-slots (payload-key) channel
+    (userial:serialize payload-key payload :buffer buffer)))
 
-(declaim (ftype (function (channel recipient) boolean)
-		channel-add-recipient))
-(defun channel-add-recipient (channel recipient)
-  (declare (type channel channel)
-	   (type recipient recipient))
-  (multiple-value-bind (rr new-p)
-      (get-channel-recipient channel recipient)
-    (declare (ignore rr))
-    new-p))
-
-(declaim (ftype (function (channel recipient) boolean)
-		channel-remove-recipient))
-(defun channel-remove-recipient (channel recipient)
-  (declare (type channel channel)
-	   (type recipient recipient))
-  (remhash recipient (slot-value channel 'recipients)))
-
-(defun send-to (channel buffer recipient channel-recipient)
-  (declare (type channel channel)
-	   (type userial:buffer buffer)
-	   (type recipient recipient)
-	   (type channel-recipient channel-recipient))
-  (let ((buf (userial:make-buffer)))
-    (userial:serialize* (:channel-id (channel-id channel)
-			 :sequence-number (channel-recipient-sequence-number
-					     channel-recipient))
-			:buffer buf)
-    (wrap-chunk channel buffer channel-recipient buf)
-    (iolib:send-to (channel-socket channel)
-		   buf
-		   :remote-host (recipient-host recipient)
-		   :remote-port (recipient-port recipient))))
-
-(defun send-chunk-to-recipients (channel chunk to)
-  (declare (type channel channel)
-	   (type userial:buffer chunk)
-	   (type list to))
-  (mapc #'(lambda (rr)
-	    (declare (type recipient rr))
-	    (send-to channel chunk rr (get-channel-recipient channel rr)))
-	to))
-
-(defun send-chunk-to-all (channel chunk)
-  (declare (type channel channel)
-	   (type userial:buffer chunk))
-  (maphash #'(lambda (rr ch-rr)
-	       (declare (type recipient rr)
-			(type channel-recipient ch-rr))
-	       (send-to channel chunk rr ch-rr))
-	   (slot-value channel 'recipients)))
-
-(declaim (ftype (function (channel userial:buffer &key (:to list))
-			  (values))
-		send-message))
-(defun send-message (channel message &key (to nil to-p))
-  (declare (type channel channel)
-	   (type userial:buffer message))
-  ;;; XXX: later... break message up into chunks
-  (if to-p
-      (send-chunk-to-recipients channel message to)
-      (send-chunk-to-all channel message))
-  (values))
+;; ----------------------------------------------------------------------
+;; base method for handle
+;; ----------------------------------------------------------------------
+(defmethod parse-packet (channel sender buffer)
+  (declare (ignore sender))
+  (with-slots (payload-key) channel
+    (userial:unserialize payload-key :buffer buffer)))

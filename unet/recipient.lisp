@@ -3,10 +3,12 @@
 
 (in-package :unet)
 
+;; ======================================================================
+;; recipient class
+;; ======================================================================
 (defclass recipient ()
   ((host :accessor recipient-host)
-   (port :initarg :port
-	 :accessor recipient-port))
+   (port :initarg :port :accessor recipient-port))
   (:default-initargs :port 26354))
 
 (defmethod print-object ((recipient recipient) stream)
@@ -15,30 +17,35 @@
 	           (recipient-host recipient)
 		   (recipient-port recipient))))
 
-(defun validate-hostname (recipient hostname hostname-p)
-  (restart-case
-    (handler-case
-	(if hostname-p
-	    (setf (recipient-host recipient) (iolib:ensure-hostname hostname))
-	    (error 'invalid-hostname-error :datum nil
-		                           :reason :must-specify-hostname))
-      (invalid-hostname-error (exception) (error exception))
-      (t (exception)
-	(error 'invalid-hostname-error
-	       :datum hostname
-	       :reason (typecase exception
-			 (iolib.sockets:resolver-no-name-error :no-such-host)
-			 (iolib.sockets:resolver-fail-error :no-name-service)
-			 (iolib.sockets:resolver-again-error :transient-error)
-			 (t :unknown)))))
-    (specify-new-hostname (new-hostname)
-      :report "Specify a new hostname"
-      :interactive (lambda ()
-		     (format *query-io* "Enter a new hostname: ")
-                     (force-output *query-io*)
-		     (list (read-line *query-io*)))
-      (validate-hostname recipient new-hostname t))))
+;; ----------------------------------------------------------------------
+;; validate-hostname
+;; ----------------------------------------------------------------------
+(defun validate-hostname (hostname hostname-p)
+  (handler-case
+      (restart-case
+	  (handler-case
+	      (if hostname-p
+		  (iolib:ensure-hostname hostname)
+		  (error 'no-hostname-given-error :given nil))
+	    (no-hostname-given-error (exception)
+	      (error exception))
+	    (iolib.sockets:resolver-no-name-error ()
+	      (error 'no-such-host-error :given hostname))
+	    (iolib.sockets:resolver-again-error ()
+	      (error 'transient-name-service-error :given hostname)))
+	(specify-new-hostname (new-hostname)
+	  :report "Specify a new hostname"
+	  :interactive (lambda ()
+			 (format *query-io* "Enter a new hostname: ")
+			 (force-output *query-io*)
+			 (list (read-line *query-io*)))
+	  (validate-hostname new-hostname t)))
+    (iolib.sockets:resolver-fail-error ()
+      (error 'permanent-name-service-error))))
 
+;; ----------------------------------------------------------------------
+;; validate-port-number
+;; ----------------------------------------------------------------------
 (defun validate-port-number (port)
   ;; make sure port number is valid
   (restart-case (progn
@@ -49,13 +56,18 @@
       :report "Specify a new port number"
       :interactive (lambda ()
 		     (format *query-io*
-			     "Enter a port number between 0 and 65536: ")
+			     "Enter a port number between 0 and 65535: ")
                      (force-output *query-io*)
 		     (list (read *query-io*)))
       (validate-port-number new-port))))
 
+;; ----------------------------------------------------------------------
+;; initialize-instance :around recipient
+;; ----------------------------------------------------------------------
 (defmethod initialize-instance :around ((recipient recipient)
 					&key (hostname nil hostname-p) port)
-  ;; make sure the hostname, if given, is valid
-  (validate-hostname recipient hostname hostname-p)
-  (call-next-method recipient :port (validate-port-number port)))
+  ;; make sure the hostname and port are valid
+  (with-accessors ((rh recipient-host) (rp recipient-port)) recipient
+    (setf rh (validate-hostname hostname hostname-p)
+	  rp (validate-port-number port)))
+  (call-next-method recipient))
