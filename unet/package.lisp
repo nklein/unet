@@ -13,4 +13,6 @@
 	     :invalid-port-expected-type
 	   :recipient
 	   :server
-	   :channel))
+	   :define-channel
+	     :prepare-packets
+	     :handle-packet))

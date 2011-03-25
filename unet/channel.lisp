@@ -4,68 +4,64 @@
 (in-package :unet)
 
 ;; ----------------------------------------------------------------------
-;; define-channel
+;; recipient-class-list generic -- [PRIVATE]
 ;; ----------------------------------------------------------------------
-(defmacro define-channel (channel-class channel-recipient-class
-			  (&rest super-classes)
-			  (&rest slots)
-			  &rest options)
+(defgeneric recipient-class-list (class))
+
+;; ----------------------------------------------------------------------
+;; expand-recipient-class-list -- [PRIVATE]
+;; ----------------------------------------------------------------------
+(defun expand-recipient-class-list (classes)
+  (when classes
+    (append (recipient-class-list (first classes))
+	    (expand-recipient-class-list (rest classes)))))
+
+;; ----------------------------------------------------------------------
+;; channel-base class -- [PRIVATE]
+;; ----------------------------------------------------------------------
+(defclass channel-base ()
+  ())
+
+;; ----------------------------------------------------------------------
+;; channel-recipient-base class -- [PRIVATE]
+;; ----------------------------------------------------------------------
+(defclass channel-recipient-base ()
+  ((%pending-packets :initform nil :accessor pending-packets)))
+
+;; ----------------------------------------------------------------------
+;; define-channel macro -- [PUBLIC]
+;; ----------------------------------------------------------------------
+(defmacro define-channel ((channel-class
+			     (&rest channel-super-classes)
+			     (&rest channel-slots)
+			     &rest channel-options)
+			  channel-recipient-class
+			    (&rest channel-recipient-slots)
+			    &rest channel-recipient-options)
+  (let ((recipient-super-classes (apply #'append
+					(mapcar #'recipient-class-list
+						channel-super-classes))))
   `(progn
-     (defclass ,channel-class ,super-classes ,slots ,@options)
-     (make-channel-recipient-class ,super-classes ,channel-recipient-class)
-     (defmethod recipient-type ((channel-type (eql ',channel-class)))
-       ',channel-recipient-class)))
+     (defclass ,channel-class (,@channel-super-classes unet::channel-base)
+       ,channel-slots
+       ,@channel-options)
+     (defmethod recipient-class-list ((class (eql ',channel-class)))
+       '(,channel-recipient-class ,@recipient-super-classes))
+     (defclass ,channel-recipient-class (,@recipient-super-classes
+					 unet::channel-recipient-base)
+       ,channel-recipient-slots
+       ,@channel-recipient-options))))
 
 ;; ----------------------------------------------------------------------
-;; recipient-type method used to prepare base-types for recipients
+;; prepare-packets generic -- [PUBLIC]
 ;; ----------------------------------------------------------------------
-(defgeneric recipient-type (channel-type))
-(defmethod recipient-type ((channel-type (eql 'channel)))
-  'channel-recipient)
+(defgeneric prepare-packets (channel channel-recipient payload)
+  (:documentation "Various channel mixins will implement :around methods for this method to add information to this packet or to do any per-packet processing that they need to do.  Any packets that need to be sent to the CHANNEL-RECIPIENT should be stored in the (PENDING-PACKETS CHANNEL-RECIPIENT) list.  Each packet is a USERIAL::BUFFER.  The PAYLOAD is also a USERIAL::BUFFER.
+
+Note: There may be more than one packet to send because a mixin decided it also needs to resend other packets, ack previously received packets, chunk this payload up into multiple packets, or what-have-you, those packets should be stored in a list in the CHANNEL-RECIPIENT."))
 
 ;; ----------------------------------------------------------------------
-;; make-channel-recipient-class
+;; handle-packet generic -- [PUBLIC]
 ;; ----------------------------------------------------------------------
-(defmacro make-channel-recipient-class ((&rest super-classes)
-					channel-recipient-class)
-  `(defclass ,channel-recipient-class ,(mapcar #'recipient-type super-classes)
-     ()))
-
-;; ======================================================================
-;; channel class
-;; ======================================================================
-(define-channel channel channel-recipient ()
-  ((payload-key :initarg :payload-key)
-   (recipients :initform (make-hash-table) :accessor channel-recipients))
-  (:default-initargs :payload-key :bytes))
-
-(defmethod print-object ((obj channel) stream)
-  (print-unreadable-object (obj stream :type t :identity t)
-    (with-slots (payload-key recipients) obj
-      (format stream ":PAYLOAD-KEY ~S :RECIPIENTS ~S"
-	      payload-key recipients))))
-
-(defmethod print-object ((obj channel-recipient) stream)
-  (print-unreadable-object (obj stream :type t :identity t)))
-
-;; ----------------------------------------------------------------------
-;; prepare-packet and handle-packet generics
-;; ----------------------------------------------------------------------
-(defgeneric prepare-packet (channel recipient payload buffer))
-(defgeneric parse-packet (channel sender buffer))
-
-;; ----------------------------------------------------------------------
-;; base method for prepare-packet
-;; ----------------------------------------------------------------------
-(defmethod prepare-packet (channel recipient payload buffer)
-  (declare (ignore recipient))
-  (with-slots (payload-key) channel
-    (userial:serialize payload-key payload :buffer buffer)))
-
-;; ----------------------------------------------------------------------
-;; base method for handle
-;; ----------------------------------------------------------------------
-(defmethod parse-packet (channel sender buffer)
-  (declare (ignore sender))
-  (with-slots (payload-key) channel
-    (userial:unserialize payload-key :buffer buffer)))
+(defgeneric handle-packet (channel channel-recipient)
+  (:documentation "Various channel mixins will implement :around methods for this method to extract information that their PREPARE-PACKET method added and do any per-packet processing needed.  Any packets that need to be sent back the the CHANNEL-RECIPIENT should be stored in then (PENDING-PACKETS CHANNEL-RECIPIENT) list.  The return value of this method should be a single payload as a USERIAL::BUFFER."))
