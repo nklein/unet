@@ -15,6 +15,7 @@
 			     (:file "recipient")
 			     (:file "channel")
 			     (:file "server")
+			     (:file "raw")
 			     (:file "mux")))
 	       (:static-file "README.mkdn")
 	       (:static-file "LICENSE.txt")))

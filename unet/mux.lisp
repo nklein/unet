@@ -27,22 +27,14 @@
   (call-next-method))
 
 ;; ----------------------------------------------------------------------
-;; handle-packet multiplex-method (query-mode) -- [PUBLIC]
-;; ----------------------------------------------------------------------
-(defmethod handle-packet ((channel multiplex-channel)
-			  (channel-recipient (eql nil))
-			  &key channel-key)
-  (prog1
-      (userial:unserialize channel-key)
-    (userial:buffer-rewind)))
-
-;; ----------------------------------------------------------------------
 ;; handle-packet multiplex-method -- [PUBLIC]
 ;; ----------------------------------------------------------------------
 (defmethod handle-packet :around ((channel multiplex-channel)
 				  (channel-recipient multiplex-recipient)
+				  packet
 				  &key channel-key)
   (with-slots (channel-id) channel
-    (unless (equal channel-id (userial:unserialize channel-key))
+    (unless (equal channel-id (userial:unserialize channel-key
+						   :buffer packet))
       (error "XXX wrong channel")))
   (call-next-method))

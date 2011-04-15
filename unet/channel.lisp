@@ -79,11 +79,6 @@
        ,@channel-recipient-options))))
 
 ;; ----------------------------------------------------------------------
-;; raw-channel channel class -- [PUBLIC]
-;; ----------------------------------------------------------------------
-(define-channel (raw-channel () ()) raw-recipient ())
-
-;; ----------------------------------------------------------------------
 ;; prepare-packets generic -- [PUBLIC]
 ;; ----------------------------------------------------------------------
 (defgeneric prepare-packets (channel channel-recipient payload
@@ -101,5 +96,6 @@ Note: There may be more than one packet to send because a mixin decided it also 
 ;; ----------------------------------------------------------------------
 ;; handle-packet generic -- [PUBLIC]
 ;; ----------------------------------------------------------------------
-(defgeneric handle-packet (channel channel-recipient &key &allow-other-keys)
-  (:documentation "Various channel mixins will implement :around methods for this method to extract information that their PREPARE-PACKET method added and do any per-packet processing needed.  Any packets that need to be sent back the the CHANNEL-RECIPIENT should be stored in then (PENDING-PACKETS CHANNEL-RECIPIENT) list.  The return value of this method should be a single payload as a USERIAL::BUFFER."))
+(defgeneric handle-packet (channel channel-recipient packet
+			   &key &allow-other-keys)
+  (:documentation "Various channel mixins will implement :around methods for this method to extract information that their PREPARE-PACKET method added to the PACKET and do any per-packet processing needed.  Any packets that need to be sent back the the CHANNEL-RECIPIENT should be stored in then (PENDING-PACKETS CHANNEL-RECIPIENT) list.  The return value of this method should be a single payload as a USERIAL::BUFFER."))
