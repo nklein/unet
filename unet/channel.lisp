@@ -20,9 +20,18 @@
 ;; channel-base class -- [PRIVATE]
 ;; ----------------------------------------------------------------------
 (defclass channel-base ()
-  ((%incoming-queue :initform nil :accessor channel-incoming-queue)
+  ((%server :initarg :server :accessor channel-server)
+   (%incoming-queue :initform nil :accessor channel-incoming-queue)
    (%recipients :initform (make-hash-table :test #'equalp)
-		:accessor channel-recipients)))
+		:accessor channel-recipients))
+  (:default-initargs :server (error "XXX must specify a server")))
+
+;; ----------------------------------------------------------------------
+;; initialize-instance for channel-base
+;; ----------------------------------------------------------------------
+(defmethod initialize-instance :after ((obj channel-base)
+				       &key &allow-other-keys)
+  (server-add-channel (channel-server obj) obj))
 
 ;; ----------------------------------------------------------------------
 ;; channel-add-recipient -- [PUBLIC]
@@ -79,7 +88,7 @@
        ,@channel-recipient-options))))
 
 ;; ----------------------------------------------------------------------
-;; prepare-packets generic -- [PUBLIC]
+;; prepare-packets generic -- [PRIVATE]
 ;; ----------------------------------------------------------------------
 (defgeneric prepare-packets (channel channel-recipient payload
 				     &key &allow-other-keys)
@@ -99,3 +108,30 @@ Note: There may be more than one packet to send because a mixin decided it also 
 (defgeneric handle-packet (channel channel-recipient packet
 			   &key &allow-other-keys)
   (:documentation "Various channel mixins will implement :around methods for this method to extract information that their PREPARE-PACKET method added to the PACKET and do any per-packet processing needed.  Any packets that need to be sent back the the CHANNEL-RECIPIENT should be stored in then (PENDING-PACKETS CHANNEL-RECIPIENT) list.  The return value of this method should be a single payload as a USERIAL::BUFFER."))
+
+;; ----------------------------------------------------------------------
+;; send-packet -- [PUBLIC]
+;; ----------------------------------------------------------------------
+(declaim (ftype (function (channel-base list userial:buffer
+			   &rest list &key &allow-other-keys) (values))
+		send-packet))
+(defun send-packet (channel recipients payload
+		    &rest keys &key &allow-other-keys)
+  "Send PAYLOAD to all RECIPIENTS via the given CHANNEL.  If RECIPIENTS is NIL, send to all of the recipients on the channel."
+  (let ((socket (server-socket (channel-server channel))))
+    (labels ((send-to-recipient (recipient)
+	       (channel-add-recipient channel recipient)
+	       (let ((rr (gethash recipient (channel-recipients channel)))
+		     (host (recipient-host recipient))
+		     (port (recipient-port recipient)))
+		 (apply #'prepare-packets channel rr payload keys)
+		 (with-accessors ((pending-packets pending-packets)) rr
+		   (mapc #'(lambda (pp)
+			     (iolib:send-to socket pp
+					    :remote-host host
+					    :remote-port port))
+			 (nreverse pending-packets))
+		   (setf pending-packets nil)))))
+      (mapc #'send-to-recipient
+	    (or recipients (channel-recipients channel)))))
+  (values))

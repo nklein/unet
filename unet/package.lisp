@@ -16,6 +16,5 @@
 	   :define-channel
 	     :channel-add-recipient
 	     :channel-remove-recipient
-	     :prepare-packets
-	     :handle-packet
+	     :send-packet
 	   :raw-channel))

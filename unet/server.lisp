@@ -35,7 +35,7 @@
   (call-next-method))
 
 ;; ----------------------------------------------------------------------
-;; server-add-channel
+;; server-add-channel -- [PRIVATE]
 ;; ----------------------------------------------------------------------
 (declaim (ftype (function (server channel-base) (values)) server-add-channel))
 (defun server-add-channel (server channel)
@@ -43,16 +43,4 @@
 	   (type channel-base channel))
   (with-accessors ((channels server-channels)) server
     (setf channels (cons channel (remove channel channels))))
-  (values))
-
-;; ----------------------------------------------------------------------
-;; server-remove-channel
-;; ----------------------------------------------------------------------
-(declaim (ftype (function (server channel-base) (values))
-		server-remove-channel))
-(defun server-remove-channel (server channel)
-  (declare (type server server)
-	   (type channel-base channel))
-  (with-accessors ((channels server-channels)) server
-    (setf channels (remove channel channels)))
   (values))
