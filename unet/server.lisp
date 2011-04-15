@@ -3,12 +3,20 @@
 
 (in-package :unet)
 
+(defmacro define-constant (name value &optional doc)
+  `(defconstant ,name (if (boundp ',name) (symbol-value ',name) ,value)
+     ,@(when doc (list doc))))
+
+(define-constant +max-packet-size+ (* 1024 1024))
+
 ;; ======================================================================
 ;; server class
 ;; ======================================================================
 (defclass server ()
   ((socket :accessor server-socket)
    (channels :initform nil :accessor server-channels)
+   (buffer :initform (userial:make-buffer +max-packet-size+)
+	   :accessor server-buffer)
    (listener-thread :initform nil :accessor server-listener-thread))
   (:default-initargs :port 26354))
 

@@ -142,6 +142,7 @@ Note: There may be more than one packet to send because a mixin decided it also 
     (let ((host (recipient-host recipient))
 	  (port (recipient-port recipient)))
       (mapc #'(lambda (pp)
+		(format t "SENDING: ~S" (userial:buffer-length :buffer pp))
 		(iolib:send-to socket pp :remote-host host :remote-port port))
 	    (nreverse pending-packets))
       (setf pending-packets nil)))
@@ -181,3 +182,36 @@ Note: There may be more than one packet to send because a mixin decided it also 
 	  (setf incoming-queue (nconc incoming-queue
 				      (list payload recipient))))))
     (send-pending-packets socket rr)))
+
+;; ----------------------------------------------------------------------
+;; packet-from-buffer -- [PRIVATE]
+;; ----------------------------------------------------------------------
+(defun packet-from-buffer (buffer length)
+  (let ((buf (userial:make-buffer length)))
+    (setf (userial:buffer-length :buffer buf) length
+	  (subseq buf 0 length) buffer)
+    buf))
+
+;; ----------------------------------------------------------------------
+;; server-check-for-messages -- [PRIVATE]
+;; ----------------------------------------------------------------------
+(declaim (ftype (function (server &optional t) boolean)
+		server-check-for-messages))
+(defun server-check-for-messages (server &optional block)
+  (let ((socket (server-socket server))
+	(buffer (server-buffer server)))
+    (multiple-value-bind (buffer length host port)
+	(iolib:receive-from socket :buffer buffer
+			           :dont-wait (not block))
+      (when host
+	(format t "GOT: ~S ~S ~S ~S" (subseq buffer 0 10) length host port)
+	(let ((packet (packet-from-buffer buffer length)))
+	  (labels ((for-channel-p (ch)
+		     (message-for-channel-p
+		         (userial:buffer-rewind :buffer packet) ch)))
+	    (let ((channel (find-if #'for-channel-p (server-channels server))))
+	      (receive-packet channel
+			      (make-instance 'recipient :hostname host
+					                :port port)
+			      (userial:buffer-rewind :buffer packet)))))
+	t))))

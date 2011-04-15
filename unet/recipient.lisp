@@ -6,10 +6,12 @@
 ;; ======================================================================
 ;; recipient class
 ;; ======================================================================
-(defclass recipient ()
-  ((host :accessor recipient-host)
-   (port :initarg :port :accessor recipient-port))
-  (:default-initargs :port 26354))
+(defstruct (recipient
+	     (:constructor
+	      make-recipient (hostname port-number
+			      &aux (host (validate-hostname hostname t))
+			           (port (validate-port-number port-number)))))
+  host port)
 
 (defmethod print-object ((recipient recipient) stream)
   (print-unreadable-object (recipient stream :type t :identity t)
@@ -66,8 +68,8 @@
 ;; ----------------------------------------------------------------------
 (defmethod initialize-instance :around ((recipient recipient)
 					&key (hostname nil hostname-p) port)
+  (call-next-method)
   ;; make sure the hostname and port are valid
-  (with-accessors ((rh recipient-host) (rp recipient-port)) recipient
+  (with-slots ((rh host) (rp port)) recipient
     (setf rh (validate-hostname hostname hostname-p)
-	  rp (validate-port-number port)))
-  (call-next-method recipient))
+	  rp (validate-port-number port))))
