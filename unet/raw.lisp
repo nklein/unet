@@ -43,5 +43,5 @@ that it will be checked last.
 			  (channel-recipient raw-recipient)
 			  packet
 			  &key &allow-other-keys)
-  (push (cons packet (channel-recipient-recipient channel-recipient))
-	(channel-incoming-queue channel)))
+  (declare (ignore channel channel-recipient))
+  packet)

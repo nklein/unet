@@ -65,3 +65,17 @@
     (format stream ":DATUM ~S :EXPECTED-TYPE ~S"
 	           (invalid-port-datum exception)
 		   (invalid-port-expected-type exception))))
+
+;; ======================================================================
+;; recipient-not-on-channel exception
+;; ======================================================================
+(define-condition recipient-not-on-channel-error (error)
+  ((channel :initarg :channel :reader recipient-not-on-channel-channel)
+   (recipient :initarg :recipient :reader recipient-not-on-channel-recipient))
+  (:documentation "Error condition raised when trying to send a message to or receive a message from a recipient on a channel the recipient has not been added to."))
+
+(defmethod print-object ((exception recipient-not-on-channel-error) stream)
+  (print-unreadable-object (exception stream :type t)
+    (format stream ":CHANNEL ~S :RECIPIENT ~S"
+	           (recipient-not-on-channel-channel exception)
+		   (recipient-not-on-channel-recipient exception))))

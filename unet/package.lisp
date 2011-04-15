@@ -11,6 +11,9 @@
 	   :invalid-port-error
 	     :invalid-port-datum
 	     :invalid-port-expected-type
+	   :recipient-not-on-channel-error
+	     :recipient-not-on-channel-channel
+	     :recipient-not-on-channel-recipient
 	   :recipient
 	   :server
 	   :define-channel
