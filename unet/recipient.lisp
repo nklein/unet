@@ -6,11 +6,7 @@
 ;; ======================================================================
 ;; recipient class
 ;; ======================================================================
-(defstruct (recipient
-	     (:constructor
-	      make-recipient (hostname port-number
-			      &aux (host (validate-hostname hostname t))
-			           (port (validate-port-number port-number)))))
+(defstruct (recipient (:constructor nil))
   host port)
 
 (defmethod print-object ((recipient recipient) stream)
@@ -71,5 +67,6 @@
   (call-next-method)
   ;; make sure the hostname and port are valid
   (with-slots ((rh host) (rp port)) recipient
-    (setf rh (validate-hostname hostname hostname-p)
+    (setf rh (iolib.sockets:address-to-vector
+	        (validate-hostname hostname hostname-p))
 	  rp (validate-port-number port))))

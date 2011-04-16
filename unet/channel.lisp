@@ -124,7 +124,8 @@ Note: There may be more than one packet to send because a mixin decided it also 
   (let ((rr (gethash recipient (channel-recipients channel))))
     (restart-case
 	(unless rr
-	  (error "XXX not member of channel"))
+	  (error 'recipient-not-on-channel-error :channel channel
+		                                 :recipient recipient))
       (add-to-channel ()
 	:report "Add recipient to channel."
 	(channel-add-recipient channel recipient)
@@ -142,7 +143,6 @@ Note: There may be more than one packet to send because a mixin decided it also 
     (let ((host (recipient-host recipient))
 	  (port (recipient-port recipient)))
       (mapc #'(lambda (pp)
-		(format t "SENDING: ~S" (userial:buffer-length :buffer pp))
 		(iolib:send-to socket pp :remote-host host :remote-port port))
 	    (nreverse pending-packets))
       (setf pending-packets nil)))
@@ -180,7 +180,7 @@ Note: There may be more than one packet to send because a mixin decided it also 
       (when payload
 	(with-accessors ((incoming-queue channel-incoming-queue)) channel
 	  (setf incoming-queue (nconc incoming-queue
-				      (list payload recipient))))))
+				      (list (list payload recipient)))))))
     (send-pending-packets socket rr)))
 
 ;; ----------------------------------------------------------------------
@@ -204,7 +204,6 @@ Note: There may be more than one packet to send because a mixin decided it also 
 	(iolib:receive-from socket :buffer buffer
 			           :dont-wait (not block))
       (when host
-	(format t "GOT: ~S ~S ~S ~S" (subseq buffer 0 10) length host port)
 	(let ((packet (packet-from-buffer buffer length)))
 	  (labels ((for-channel-p (ch)
 		     (message-for-channel-p
