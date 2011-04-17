@@ -6,35 +6,76 @@
 Patrick Stein <pat@nklein.com>
 
 * [Overview](#overview)
-* [Recipients](#recipients)
   
 ## <a name="overview">Overview</a>
 
 This library builds upon the [USerial library][userial] and
 the [IOLib library][iolib] to provide a datagram networking
-layer with variable quality of service.  The UNet library
-wraps the data given to it so that it can provide the
-quality of service desired.  As such, the datagrams generated
-by the UNet library are not suitable for interfacing to
-non-UNet applications.  If you wish to communicate with an
-existing service, you should use the IOLib library and
-USerial library directly.
+layer with variable quality of service.
 
   [userial]: http://nklein.com/software/unet/userial/
   [iolib]:   http://common-lisp.net/project/iolib/
 
-## <a name="recipients">Recipient</a>
+To start sending and receiving data, one creates a server
+instance specifying the port number the server will receive
+messages on and send messages from.  If not specified, the
+port number defaults to `26354`.
 
-If the UNet library is to deliver datagrams, it needs to be told a
-hostname and port for each recipient.
+    (defvar *s* (make-instance 'unet:server :port 1187))
 
-    (make-instance 'recipient :hostname "localhost" :port 26354)
+Then, one adds some number of channels to the server.  The channel
+constructor has one required parameter telling it which server the
+channel is to use.
 
-A hostname must be specified when creating an instance.  The port, however,
-is optional.  If unspecified, the port is assumed to be 26354.
+    (defvar *c* (make-instance 'unet:raw-channel :server *s*))
 
-If the constructor for the `recipient` class is unable to determine
-the IP address for the given hostname, it will throw one of the
-following errors.
+At this point in time, only the `raw-channel` is available.  Data sent
+to the `raw-channel` is sent as-is with no further wrapping from the
+UNet library.  Note: It does not make sense to have more than one
+`raw-channel` per `server` instance because, without any wrapping at
+all, it is impossible for the UNet library to distinguish which
+`raw-channel` an incoming message was supposed to be for.
 
-   * 
+Coming soon, there will be multiplexed channels with message-chunking
+and various quality-of-service options.
+
+After the server and channel are established, one can add recipients
+to the channel or remove recipients from the channel.
+
+    (defvar *r1* (make-instance 'unet:recipient
+                                :hostname "client.host.com"
+				:port 1187))
+    (unet:channel-add-recipient *c1* *r1*)
+    (unet:channel-remove-recipient *c1* *r1*)
+
+Note: For most channels, it is unwise to remove recipients and then
+add them again unless it has been coordinated with the recipient's end
+of the channel.  There is per-recipient state at each end of the
+channel that the UNet library will not resynchronize.
+
+After one or more recipients are added to a channel, one can send a
+message to a list of recipients for the channel.
+
+    (unet:send-packet channel (list *r1*) payload)
+
+If the list of recipients is `nil`, the payload is sent to all
+recipients on the channel.  The `payload` is expected to be a
+`userial:buffer`.  Note: if a recipient which has not been added to
+the channel is specified in the `send-packet` list of recipients, UNet
+will throw an exception with an `add-to-channel` restart to include
+the recipient on the channel.
+
+One can check for incoming messages on a channel.
+
+    (multiple-value-bind (payload recipient)
+        (unet:next-packet channel)
+      (when recipient
+        ...))
+
+The `next-packet` function takes an optional second parameter
+that if not `nil` will cause `next-packet` to wait until a
+message is received on the given channel before returning.  If
+this parameter is not given (or is `nil`), the `next-packet`
+will return immediately with both a `nil` payload and `nil`
+recipient if no message is available for this channel.
+

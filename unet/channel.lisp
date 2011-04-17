@@ -214,3 +214,20 @@ Note: There may be more than one packet to send because a mixin decided it also 
 					                :port port)
 			      (userial:buffer-rewind :buffer packet)))))
 	t))))
+
+;; ----------------------------------------------------------------------
+;; next-packet function -- [PUBLIC]
+;; ----------------------------------------------------------------------
+(declaim (ftype (function (channel-base &optional boolean)
+			  (values (or userial:buffer nil)
+				  (or recipient nil)))
+		next-packet))
+(defun next-packet (channel &optional block)
+  (let ((got (pop (channel-incoming-queue channel))))
+    (cond
+      (got (values (first got) (second got)))
+      (t   (server-check-for-messages (channel-server channel) block)
+	   (let ((got (pop (channel-incoming-queue channel))))
+	     (if got
+		 (values (first got) (second got))
+		 (values nil nil)))))))

@@ -20,4 +20,5 @@
 	     :channel-add-recipient
 	     :channel-remove-recipient
 	     :send-packet
+             :next-packet
 	   :raw-channel))
