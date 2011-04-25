@@ -158,11 +158,17 @@ Note: There may be more than one packet to send because a mixin decided it also 
 		    &rest keys &key &allow-other-keys)
   "Send PAYLOAD to all RECIPIENTS via the given CHANNEL.  If RECIPIENTS is NIL, send to all of the recipients on the channel."
   (let ((socket (server-socket (channel-server channel))))
-    (labels ((send-to-recipient (recipient)
-	       (let ((rr (get-channel-recipient channel recipient)))
-		 (apply #'prepare-packets channel rr payload keys)
-		 (send-pending-packets socket rr))))
-      (mapc #'send-to-recipient (or recipients (channel-recipients channel)))))
+    (labels ((send-to-channel-recipient (crr)
+               (apply #'prepare-packets channel crr payload keys)
+               (send-pending-packets socket crr))
+             (send-to-hash-recipient (rr crr)
+               (declare (ignore rr))
+               (send-to-channel-recipient crr))
+             (send-to-recipient (rr)
+               (send-to-channel-recipient (get-channel-recipient channel rr))))
+      (if (null recipients)
+          (maphash #'send-to-hash-recipient (channel-recipients channel))
+          (mapc #'send-to-recipient recipients))))
   (values))
 
 ;; ----------------------------------------------------------------------
@@ -187,47 +193,87 @@ Note: There may be more than one packet to send because a mixin decided it also 
 ;; packet-from-buffer -- [PRIVATE]
 ;; ----------------------------------------------------------------------
 (defun packet-from-buffer (buffer length)
-  (let ((buf (userial:make-buffer length)))
+  (let ((buf (userial:make-buffer (max length 1))))
     (setf (userial:buffer-length :buffer buf) length
 	  (subseq buf 0 length) buffer)
     buf))
 
 ;; ----------------------------------------------------------------------
+;; server-get-single-message -- [PRIVATE]
+;; ----------------------------------------------------------------------
+(defun server-get-single-message (socket buffer block)
+  (handler-case
+      (multiple-value-bind (buffer length host port)
+          (iolib:receive-from socket :buffer buffer
+                                     :dont-wait (not block))
+        (if host
+            (values (packet-from-buffer buffer length)
+                    (make-instance 'recipient :hostname host :port port))
+            (values nil nil)))
+    (iolib.syscalls:ewouldblock () (values nil nil))))
+
+;; ----------------------------------------------------------------------
+;; server-process-single-message -- [PRIVATE]
+;; ----------------------------------------------------------------------
+(defun server-process-single-message (server packet recipient)
+  (labels ((for-channel-p (ch)
+             (message-for-channel-p (userial:buffer-rewind :buffer packet)
+                                    ch)))
+    (let ((channel (find-if #'for-channel-p (server-channels server))))
+      (when channel
+        (receive-packet channel recipient
+                        (userial:buffer-rewind :buffer packet))
+        t))))
+
+;; ----------------------------------------------------------------------
 ;; server-check-for-messages -- [PRIVATE]
 ;; ----------------------------------------------------------------------
-(declaim (ftype (function (server &optional t) boolean)
+(declaim (ftype (function (server &optional boolean) (integer 0 *))
 		server-check-for-messages))
 (defun server-check-for-messages (server &optional block)
-  (let ((socket (server-socket server))
-	(buffer (server-buffer server)))
-    (multiple-value-bind (buffer length host port)
-	(iolib:receive-from socket :buffer buffer
-			           :dont-wait (not block))
-      (when host
-	(let ((packet (packet-from-buffer buffer length)))
-	  (labels ((for-channel-p (ch)
-		     (message-for-channel-p
-		         (userial:buffer-rewind :buffer packet) ch)))
-	    (let ((channel (find-if #'for-channel-p (server-channels server))))
-	      (receive-packet channel
-			      (make-instance 'recipient :hostname host
-					                :port port)
-			      (userial:buffer-rewind :buffer packet)))))
-	t))))
+  (flet ((got-and-processed (blocking)
+           (multiple-value-bind (packet recipient)
+               (server-get-single-message (server-socket server)
+                                          (server-buffer server)
+                                          blocking)
+             (when recipient
+               (server-process-single-message server packet recipient)
+               t))))
+    (cond
+      ((got-and-processed nil)
+         (incf (server-unchecked-messages server))
+         (server-check-for-messages server block))
+      ((plusp (server-unchecked-messages server))
+         (server-unchecked-messages server))
+      ((not block)
+         (server-unchecked-messages server))
+      ((got-and-processed t)
+         (incf (server-unchecked-messages server)))
+      (t (server-unchecked-messages server)))))
+
+;; ----------------------------------------------------------------------
+;; server-channels-with-messages -- [PUBLIC]
+;; ----------------------------------------------------------------------
+(declaim (ftype (function (server &optional boolean) list)
+                server-channels-with-messages))
+(defun server-channels-with-messages (server &optional block)
+  (server-check-for-messages server block)
+  (remove-if #'null (server-channels server) :key #'channel-incoming-queue))
 
 ;; ----------------------------------------------------------------------
 ;; next-packet function -- [PUBLIC]
 ;; ----------------------------------------------------------------------
 (declaim (ftype (function (channel-base &optional boolean)
-			  (values (or userial:buffer nil)
-				  (or recipient nil)))
+                          (values &optional userial:buffer recipient))
 		next-packet))
-(defun next-packet (channel &optional block)
+(defun next-packet (channel &optional check)
+  (when (and check (null (channel-incoming-queue channel)))
+    (server-check-for-messages (channel-server channel)))
   (let ((got (pop (channel-incoming-queue channel))))
-    (cond
-      (got (values (first got) (second got)))
-      (t   (server-check-for-messages (channel-server channel) block)
-	   (let ((got (pop (channel-incoming-queue channel))))
-	     (if got
-		 (values (first got) (second got))
-		 (values nil nil)))))))
+    (if got
+        (destructuring-bind (buffer recipient) got
+          (declare (type userial:buffer buffer)
+                   (type recipient recipient))
+          (decf (server-unchecked-messages (channel-server channel)))
+          (values buffer recipient))
+        (values))))

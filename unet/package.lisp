@@ -16,6 +16,7 @@
 	     :recipient-not-on-channel-recipient
 	   :recipient
 	   :server
+             :server-channels-with-messages
 	   :define-channel
 	     :channel-add-recipient
 	     :channel-remove-recipient

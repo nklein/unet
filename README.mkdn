@@ -65,7 +65,16 @@ the channel is specified in the `send-packet` list of recipients, UNet
 will throw an exception with an `add-to-channel` restart to include
 the recipient on the channel.
 
-One can check for incoming messages on a channel.
+One can find all of the channels on a server that have messages.
+
+    (let ((channel-list (unet:server-channels-with-messages server)))
+       ...)
+
+The `server-channels-with-messages` takes an optional second parameter
+that, if not `nil`, makes the method wait until at least one channel
+has messages.
+
+One can check for incoming messages on a given channel.
 
     (multiple-value-bind (payload recipient)
         (unet:next-packet channel)
@@ -73,9 +82,6 @@ One can check for incoming messages on a channel.
         ...))
 
 The `next-packet` function takes an optional second parameter
-that if not `nil` will cause `next-packet` to wait until a
-message is received on the given channel before returning.  If
-this parameter is not given (or is `nil`), the `next-packet`
-will return immediately with both a `nil` payload and `nil`
-recipient if no message is available for this channel.
+that if not `nil` will cause `next-packet` to also check the
+server for more messages.
 

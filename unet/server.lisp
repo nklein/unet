@@ -15,6 +15,7 @@
 (defclass server ()
   ((socket :accessor server-socket)
    (channels :initform nil :accessor server-channels)
+   (unchecked-messages :initform 0 :accessor server-unchecked-messages)
    (buffer :initform (make-array (list +max-packet-size+)
 				 :element-type '(unsigned-byte 8)
 				 :initial-element 0)
@@ -26,9 +27,10 @@
   (print-unreadable-object (obj stream :type t :identity t)
     (with-accessors ((socket server-socket)
 		     (channels server-channels)
-		     (listener server-listener-thread)) obj
-      (format stream ":PORT ~S :CHANNELS ~S :SOCKET ~S"
-	      (iolib.sockets:local-port socket) channels socket)
+		     (listener server-listener-thread)
+                     (unchecked server-unchecked-messages)) obj
+      (format stream ":PORT ~S :CHANNELS ~S :SOCKET ~S :UNCHECKED-MSGS ~S"
+	      (iolib.sockets:local-port socket) channels socket unchecked)
       (format stream " :LISTENER ~S" listener))))
 
 ;; ----------------------------------------------------------------------
