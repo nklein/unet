@@ -17,6 +17,7 @@
 			     (:file "channel")
 			     (:file "server")
 			     (:file "raw")
-			     (:file "mux")))
+			     (:file "mux")
+                             (:file "log-serial")))
 	       (:static-file "README.mkdn")
 	       (:static-file "LICENSE.txt")))
