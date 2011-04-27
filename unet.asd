@@ -11,6 +11,7 @@
   :components ((:module "unet"
                 :serial t
 		:components ((:file "package")
+                             (:file "logging")
                              (:file "errors")
 			     (:file "recipient")
 			     (:file "channel")

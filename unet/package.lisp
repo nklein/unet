@@ -3,7 +3,8 @@
 
 (defpackage :unet
   (:use :cl)
-  (:export :invalid-hostname-error
+  (:export :set-logger
+           :invalid-hostname-error
 	     :invalid-hostname-given
 	     :no-such-host-error
 	     :transient-name-service-error

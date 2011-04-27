@@ -19,12 +19,14 @@
 ;; validate-hostname
 ;; ----------------------------------------------------------------------
 (defun validate-hostname (hostname hostname-p)
+  (log-it :validate-hostname :string hostname
+                             :boolean (if hostname-p t nil))
   (handler-case
       (restart-case
 	  (handler-case
 	      (if hostname-p
 		  (iolib:ensure-hostname hostname)
-		  (error 'no-hostname-given-error :given nil))
+                  (error 'no-hostname-given-error :given nil))
 	    (no-hostname-given-error (exception)
 	      (error exception))
 	    (iolib.sockets:resolver-no-name-error ()
@@ -36,7 +38,8 @@
 	  :interactive (lambda ()
 			 (format *query-io* "Enter a new hostname: ")
 			 (force-output *query-io*)
-			 (list (read-line *query-io*)))
+                         (list (read-line *query-io*)))
+          (log-it :specify-new-hostname :string new-hostname)
 	  (validate-hostname new-hostname t)))
     (iolib.sockets:resolver-fail-error ()
       (error 'permanent-name-service-error))))
@@ -45,6 +48,7 @@
 ;; validate-port-number
 ;; ----------------------------------------------------------------------
 (defun validate-port-number (port)
+  (log-it :validate-port-number :uint16 port)
   ;; make sure port number is valid
   (restart-case (progn
 		  (unless (typep port '(unsigned-byte 16))
@@ -57,6 +61,7 @@
 			     "Enter a port number between 0 and 65535: ")
                      (force-output *query-io*)
 		     (list (read *query-io*)))
+      (log-it :specify-new-port :uint16 new-port)
       (validate-port-number new-port))))
 
 ;; ----------------------------------------------------------------------
@@ -69,4 +74,5 @@
   (with-slots ((rh host) (rp port)) recipient
     (setf rh (iolib.sockets:address-to-vector
 	        (validate-hostname hostname hostname-p))
-	  rp (validate-port-number port))))
+	  rp (validate-port-number port))
+    (log-it :initialize-recipient :unet-host rh :uint16 rp)))

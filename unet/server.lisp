@@ -56,3 +56,65 @@
   (with-accessors ((channels server-channels)) server
     (setf channels (cons channel (remove channel channels))))
   (values))
+
+;; ----------------------------------------------------------------------
+;; server-get-single-message -- [PRIVATE]
+;; ----------------------------------------------------------------------
+(defun server-get-single-message (socket buffer block)
+  (handler-case
+      (multiple-value-bind (buffer length host port)
+          (iolib:receive-from socket :buffer buffer
+                                     :dont-wait (not block))
+        (if host
+            (values (packet-from-buffer buffer length)
+                    (make-instance 'recipient :hostname host :port port))
+            (values nil nil)))
+    (iolib.syscalls:ewouldblock () (values nil nil))))
+
+;; ----------------------------------------------------------------------
+;; server-process-single-message -- [PRIVATE]
+;; ----------------------------------------------------------------------
+(defun server-process-single-message (server packet recipient)
+  (labels ((for-channel-p (ch)
+             (message-for-channel-p (userial:buffer-rewind :buffer packet)
+                                    ch)))
+    (let ((channel (find-if #'for-channel-p (server-channels server))))
+      (when channel
+        (receive-packet channel recipient
+                        (userial:buffer-rewind :buffer packet))
+        t))))
+
+;; ----------------------------------------------------------------------
+;; server-check-for-messages -- [PRIVATE]
+;; ----------------------------------------------------------------------
+(declaim (ftype (function (server &optional boolean) (integer 0 *))
+		server-check-for-messages))
+(defun server-check-for-messages (server &optional block)
+  (flet ((got-and-processed (blocking)
+           (multiple-value-bind (packet recipient)
+               (server-get-single-message (server-socket server)
+                                          (server-buffer server)
+                                          blocking)
+             (when recipient
+               (server-process-single-message server packet recipient)
+               t))))
+    (cond
+      ((got-and-processed nil)
+         (incf (server-unchecked-messages server))
+         (server-check-for-messages server block))
+      ((plusp (server-unchecked-messages server))
+         (server-unchecked-messages server))
+      ((not block)
+         (server-unchecked-messages server))
+      ((got-and-processed t)
+         (incf (server-unchecked-messages server)))
+      (t (server-unchecked-messages server)))))
+
+;; ----------------------------------------------------------------------
+;; server-channels-with-messages -- [PUBLIC]
+;; ----------------------------------------------------------------------
+(declaim (ftype (function (server &optional boolean) list)
+                server-channels-with-messages))
+(defun server-channels-with-messages (server &optional block)
+  (server-check-for-messages server block)
+  (remove-if #'null (server-channels server) :key #'channel-incoming-queue))
