@@ -10,11 +10,11 @@ Patrick Stein <pat@nklein.com>
 ## <a name="overview">Overview</a>
 
 This library builds upon the [USerial library][userial] and
-the [IOLib library][iolib] to provide a datagram networking
+the [USocket library][usocket] to provide a datagram networking
 layer with variable quality of service.
 
   [userial]: http://nklein.com/software/unet/userial/
-  [iolib]:   http://common-lisp.net/project/iolib/
+  [usocket]: http://common-lisp.net/project/usocket/
 
 To start sending and receiving data, one creates a server
 instance specifying the port number the server will receive
