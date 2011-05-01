@@ -18,20 +18,17 @@
 ;; ----------------------------------------------------------------------
 ;; validate-hostname
 ;; ----------------------------------------------------------------------
-(defun validate-hostname (hostname hostname-p)
-  (log-it :unet-validate-hostname :string hostname
-                                  :boolean (if hostname-p t nil))
+(defun validate-hostname (hostname)
+  (log-it :unet-validate-hostname :string hostname)
   (handler-case
       (restart-case
 	  (handler-case
-	      (if hostname-p
-		  (iolib:ensure-hostname hostname)
+	      (if hostname
+		  (usocket::host-to-vector-quad hostname)
                   (error 'no-hostname-given-error :given nil))
-	    (no-hostname-given-error (exception)
-	      (error exception))
-	    (iolib.sockets:resolver-no-name-error ()
+	    (usocket:ns-host-not-found-error ()
 	      (error 'no-such-host-error :given hostname))
-	    (iolib.sockets:resolver-again-error ()
+	    (usocket:ns-try-again-condition ()
 	      (error 'transient-name-service-error :given hostname)))
 	(specify-new-hostname (new-hostname)
 	  :report "Specify a new hostname"
@@ -40,8 +37,8 @@
 			 (force-output *query-io*)
                          (list (read-line *query-io*)))
           (log-it :unet-specify-new-hostname :string new-hostname)
-	  (validate-hostname new-hostname t)))
-    (iolib.sockets:resolver-fail-error ()
+	  (validate-hostname new-hostname)))
+    (usocket:ns-no-recovery-error ()
       (error 'permanent-name-service-error))))
 
 ;; ----------------------------------------------------------------------
@@ -68,13 +65,12 @@
 ;; initialize-instance :around recipient
 ;; ----------------------------------------------------------------------
 (defmethod initialize-instance :around ((recipient recipient)
-					&key (hostname nil hostname-p) port)
+					&key hostname port)
   (call-next-method)
   ;; make sure the hostname and port are valid
   (with-slots ((rh host) (rp port)) recipient
-    (setf rh (iolib.sockets:address-to-vector
-                (if (iolib.sockets:addressp hostname)
-                    hostname
-                    (validate-hostname hostname hostname-p)))
+    (setf rh (if (and (not (stringp hostname)) (vectorp hostname))
+                 hostname
+                 (validate-hostname hostname))
 	  rp (validate-port-number port))
     (log-it :unet-initialize-recipient :unet-host rh :uint16 rp)))

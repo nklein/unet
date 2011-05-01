@@ -135,7 +135,7 @@ Note: There may be more than one packet to send because a mixin decided it also 
 ;; ----------------------------------------------------------------------
 ;; send-pending-packets -- [PUBLIC]
 ;; ----------------------------------------------------------------------
-(declaim (ftype (function (iolib:socket channel-recipient-base) (values))
+(declaim (ftype (function (usocket:usocket channel-recipient-base) (values))
 		send-pending-packets))
 (defun send-pending-packets (socket channel-recipient)
   (with-accessors ((recipient channel-recipient-recipient)
@@ -143,7 +143,10 @@ Note: There may be more than one packet to send because a mixin decided it also 
     (let ((host (recipient-host recipient))
 	  (port (recipient-port recipient)))
       (mapc #'(lambda (pp)
-		(iolib:send-to socket pp :remote-host host :remote-port port))
+		(usocket:socket-send socket
+                                     pp
+                                     (userial:buffer-length :buffer pp)
+                                     :host host :port port))
 	    (nreverse pending-packets))
       (setf pending-packets nil)))
   (values))

@@ -30,7 +30,7 @@
 		     (listener server-listener-thread)
                      (unchecked server-unchecked-messages)) obj
       (format stream ":PORT ~S :CHANNELS ~S :SOCKET ~S :UNCHECKED-MSGS ~S"
-	      (iolib.sockets:local-port socket) channels socket unchecked)
+	      (usocket:get-local-port socket) channels socket unchecked)
       (format stream " :LISTENER ~S" listener))))
 
 ;; ----------------------------------------------------------------------
@@ -38,12 +38,10 @@
 ;; ----------------------------------------------------------------------
 (defmethod initialize-instance :around ((obj server) &key port)
   (with-accessors ((socket server-socket) (channels server-channels)) obj
-    (setf socket (iolib.sockets:make-socket
-		     :address-family :internet
-		     :type :datagram
-		     :local-host iolib.sockets:+ipv4-unspecified+
-		     :local-port (validate-port-number port)
-		     :reuse-address t)))
+    (setf socket (usocket:socket-connect nil nil
+                     :protocol :datagram
+                     :element-type '(unsigned-byte 8)
+                     :local-port (validate-port-number port))))
   (call-next-method))
 
 ;; ----------------------------------------------------------------------
@@ -61,15 +59,17 @@
 ;; server-get-single-message -- [PRIVATE]
 ;; ----------------------------------------------------------------------
 (defun server-get-single-message (socket buffer block)
-  (handler-case
-      (multiple-value-bind (buffer length host port)
-          (iolib:receive-from socket :buffer buffer
-                                     :dont-wait (not block))
-        (if host
-            (values (packet-from-buffer buffer length)
-                    (make-instance 'recipient :hostname host :port port))
-            (values nil nil)))
-    (iolib.syscalls:ewouldblock () (values nil nil))))
+  (flet ((socket-has-pending (socket)
+           (usocket:wait-for-input (list socket) :timeout 0)
+           (eq (usocket::state socket) :read)))
+    (cond
+      ((or block (socket-has-pending socket))
+         (multiple-value-bind (buffer length host port)
+             (usocket:socket-receive socket buffer
+                                     (userial:buffer-capacity :buffer buffer))
+           (values (packet-from-buffer buffer length)
+                   (make-instance 'recipient :hostname host :port port))))
+      (t (values nil nil)))))
 
 ;; ----------------------------------------------------------------------
 ;; server-process-single-message -- [PRIVATE]

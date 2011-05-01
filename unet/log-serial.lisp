@@ -12,8 +12,9 @@
                                
                                ))
 
-(userial:make-simple-serializer :unet-host (vector 0 0 0 0)
-                                           (:uint8 (elt userial::object 0)
-                                            :uint8 (elt userial::object 1)
-                                            :uint8 (elt userial::object 2)
-                                            :uint8 (elt userial::object 3)))
+(userial:make-simple-serializer :unet-host
+                                (object (vector 0 0 0 0))
+                                (:uint8 (elt object 0)
+                                 :uint8 (elt object 1)
+                                 :uint8 (elt object 2)
+                                 :uint8 (elt object 3)))

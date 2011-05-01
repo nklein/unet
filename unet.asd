@@ -7,7 +7,7 @@
   :version "0.1.2011.03.07"
   :author "Patrick Stein <pat@nklein.com>"
   :licence "MIT"
-  :depends-on ("userial" "iolib")
+  :depends-on ("userial" "usocket")
   :components ((:module "unet"
                 :serial t
 		:components ((:file "package")
