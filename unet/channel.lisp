@@ -20,7 +20,8 @@
 ;; channel-base class -- [PRIVATE]
 ;; ----------------------------------------------------------------------
 (defclass channel-base ()
-  ((%server :initarg :server :accessor channel-server)
+  ((%id :initform (gensym "CH") :reader channel-id)
+   (%server :initarg :server :accessor channel-server)
    (%incoming-queue :initform nil :accessor channel-incoming-queue)
    (%recipients :initform (make-hash-table :test #'equalp)
 		:accessor channel-recipients))
@@ -28,7 +29,8 @@
 
 (defmethod print-object ((channel channel-base) stream)
   (print-unreadable-object (channel stream :type t)
-    (format stream ":INCOMING-QUEUE ~S :RECIPIENTS ~S"
+    (format stream ":ID ~S :INCOMING-QUEUE ~S :RECIPIENTS ~S"
+                   (channel-id channel)
 		   (length (channel-incoming-queue channel))
 		   (hash-table-count (channel-recipients channel)))))
 
@@ -37,6 +39,9 @@
 ;; ----------------------------------------------------------------------
 (defmethod initialize-instance :after ((obj channel-base)
 				       &key &allow-other-keys)
+  (log-it :unet-initialize-channel
+          :unet-channel obj
+          :string (format nil "~A" obj))
   (server-add-channel (channel-server obj) obj))
 
 ;; ----------------------------------------------------------------------
@@ -46,6 +51,8 @@
 		channel-add-recipient))
 (defun channel-add-recipient (channel recipient)
   (unless (gethash recipient (channel-recipients channel))
+    (log-it :unet-channel-add-recipient :unet-channel channel
+                                        :unet-recipient recipient)
     (let* ((channel-class (type-of channel))
 	   (recipient-class (first (recipient-class-list channel-class)))
 	   (channel-recipient (make-instance recipient-class
@@ -59,7 +66,9 @@
 ;; ----------------------------------------------------------------------
 (declaim (ftype (function (channel-base recipient) t)
 		channel-remove-recipient))
-(defun channel-remove-recipient (channel recipient) 
+(defun channel-remove-recipient (channel recipient)
+  (log-it :unet-channel-remove-recipient :unet-channel channel
+                                      :unet-recipient recipient)
   (remhash recipient (channel-recipients channel)))
 
 ;; ----------------------------------------------------------------------
@@ -128,6 +137,8 @@ Note: There may be more than one packet to send because a mixin decided it also 
 		                                 :recipient recipient))
       (add-to-channel ()
 	:report "Add recipient to channel."
+        (log-it :unet-add-to-channel :unet-channel channel
+                                     :unet-recipient recipient)
 	(channel-add-recipient channel recipient)
 	(setf rr (get-channel-recipient channel recipient))))
     rr))
@@ -140,15 +151,18 @@ Note: There may be more than one packet to send because a mixin decided it also 
 (defun send-pending-packets (socket channel-recipient)
   (with-accessors ((recipient channel-recipient-recipient)
 		   (pending-packets pending-packets)) channel-recipient
-    (let ((host (recipient-host recipient))
-	  (port (recipient-port recipient)))
-      (mapc #'(lambda (pp)
-		(usocket:socket-send socket
-                                     pp
-                                     (userial:buffer-length :buffer pp)
-                                     :host host :port port))
-	    (nreverse pending-packets))
-      (setf pending-packets nil)))
+    (when pending-packets
+      (log-it :unet-send-pending-packets :unet-recipient recipient
+                                         :uint16 (length pending-packets))
+      (let ((host (recipient-host recipient))
+            (port (recipient-port recipient)))
+        (mapc #'(lambda (pp)
+                  (usocket:socket-send socket
+                                       pp
+                                       (userial:buffer-length :buffer pp)
+                                       :host host :port port))
+              (nreverse pending-packets))
+        (setf pending-packets nil))))
   (values))
 
 ;; ----------------------------------------------------------------------
@@ -169,9 +183,16 @@ Note: There may be more than one packet to send because a mixin decided it also 
                (send-to-channel-recipient crr))
              (send-to-recipient (rr)
                (send-to-channel-recipient (get-channel-recipient channel rr))))
-      (if (null recipients)
-          (maphash #'send-to-hash-recipient (channel-recipients channel))
-          (mapc #'send-to-recipient recipients))))
+      (cond
+        ((null recipients)
+           (log-it :unet-send-packet-all :unet-channel channel
+                                         :bytes payload)
+           (maphash #'send-to-hash-recipient (channel-recipients channel)))
+        (t
+           (log-it :unet-send-packet-some :unet-channel channel
+                                          :bytes payload
+                                          :unet-recipient-list recipients)
+           (mapc #'send-to-recipient recipients)))))
   (values))
 
 ;; ----------------------------------------------------------------------
@@ -182,6 +203,9 @@ Note: There may be more than one packet to send because a mixin decided it also 
 		receive-packet))
 (defun receive-packet (channel recipient packet
 		       &rest keys &key &allow-other-keys)
+  (log-it :unet-receive-packet :unet-channel channel
+                               :unet-recipient recipient
+                               :bytes packet)
   (let ((rr (get-channel-recipient channel recipient))
 	(packet (userial:buffer-rewind :buffer packet))
 	(socket (server-socket (channel-server channel))))
@@ -207,7 +231,12 @@ Note: There may be more than one packet to send because a mixin decided it also 
 (declaim (ftype (function (channel-base &optional boolean)
                           (values &optional userial:buffer recipient))
 		next-packet))
-(defun next-packet (channel &optional check)
+(defun next-packet (channel &optional (check t))
+  (log-it :unet-next-packet :unet-channel channel
+                            :boolean check
+                            :uint16 (length (channel-incoming-queue channel))
+                            :uint32 (server-unchecked-messages
+                                       (channel-server channel)))
   (when (and check (null (channel-incoming-queue channel)))
     (server-check-for-messages (channel-server channel)))
   (let ((got (pop (channel-incoming-queue channel))))
