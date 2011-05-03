@@ -18,6 +18,7 @@
 	   :recipient
 	   :server
              :server-channels-with-messages
+             :server-close
 	   :define-channel
 	     :channel-add-recipient
 	     :channel-remove-recipient

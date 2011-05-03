@@ -118,3 +118,12 @@
 (defun server-channels-with-messages (server &optional block)
   (server-check-for-messages server block)
   (remove-if #'null (server-channels server) :key #'channel-incoming-queue))
+
+;; ----------------------------------------------------------------------
+;; server-close -- [PUBLIC]
+;; ----------------------------------------------------------------------
+(declaim (ftype (function (server) (values)) server-close))
+(defun server-close (server)
+  (usocket:socket-close (server-socket server))
+  (setf (server-socket server) nil)
+  (values))
