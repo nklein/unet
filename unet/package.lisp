@@ -24,4 +24,10 @@
 	     :channel-remove-recipient
 	     :send-packet
              :next-packet
-	   :raw-channel))
+	   :raw-channel
+           :*current-log* ; done
+           :*current-browser* ; done
+           :*current-log-browser*
+           :log-browser
+           :next-log-message
+           :previous-log-message))

@@ -18,6 +18,7 @@
 			     (:file "server")
 			     (:file "raw")
 			     (:file "mux")
-                             (:file "log-serial")))
+                             (:file "log-serial")
+                             (:file "browser")))
 	       (:static-file "README.mkdn")
 	       (:static-file "LICENSE.txt")))
