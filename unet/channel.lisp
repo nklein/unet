@@ -41,7 +41,7 @@
 				       &key &allow-other-keys)
   (log-it :unet-initialize-channel
           :unet-channel obj
-          :string (format nil "~A" obj))
+          :string (to-string obj))
   (server-add-channel (channel-server obj) obj))
 
 ;; ----------------------------------------------------------------------

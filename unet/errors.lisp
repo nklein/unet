@@ -80,8 +80,8 @@
 (defmethod initialize-instance :after ((exception invalid-port-error)
                                        &key datum &allow-other-keys)
   (log-it :invalid-port-error
-          :string (format nil "~A" (type-of datum))
-          :string (format nil "~A" datum)))
+          :string (to-string (type-of datum))
+          :string (to-string datum)))
 
 (defmethod print-object ((exception invalid-port-error) stream)
   (print-unreadable-object (exception stream :type t)
