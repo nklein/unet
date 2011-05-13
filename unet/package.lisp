@@ -25,8 +25,6 @@
 	     :send-packet
              :next-packet
 	   :raw-channel
-           :*current-log* ; done
-           :*current-browser* ; done
            :*current-log-browser*
            :log-browser
            :next-log-message
