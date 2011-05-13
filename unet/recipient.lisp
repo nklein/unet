@@ -19,7 +19,7 @@
 ;; validate-hostname
 ;; ----------------------------------------------------------------------
 (defun validate-hostname (hostname)
-  (log-it :unet-validate-hostname :string hostname)
+  (log-it :unet-validate-hostname :string (to-string hostname))
   (handler-case
       (restart-case
 	  (handler-case
@@ -36,7 +36,7 @@
 			 (format *query-io* "Enter a new hostname: ")
 			 (force-output *query-io*)
                          (list (read-line *query-io*)))
-          (log-it :unet-specify-new-hostname :string new-hostname)
+          (log-it :unet-specify-new-hostname :string (to-string new-hostname))
 	  (validate-hostname new-hostname)))
     (usocket:ns-no-recovery-error ()
       (error 'permanent-name-service-error))))
@@ -45,7 +45,7 @@
 ;; validate-port-number
 ;; ----------------------------------------------------------------------
 (defun validate-port-number (port)
-  (log-it :unet-validate-port-number :uint16 port)
+  (log-it :unet-validate-port-number :string (to-string port))
   ;; make sure port number is valid
   (restart-case (progn
 		  (unless (typep port '(unsigned-byte 16))
@@ -58,7 +58,7 @@
 			     "Enter a port number between 0 and 65535: ")
                      (force-output *query-io*)
 		     (list (read *query-io*)))
-      (log-it :unet-specify-new-port-number :uint16 new-port)
+      (log-it :unet-specify-new-port-number :string (to-string new-port))
       (validate-port-number new-port))))
 
 ;; ----------------------------------------------------------------------

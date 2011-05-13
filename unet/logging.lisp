@@ -11,6 +11,9 @@
   (setf *logger* logger)
   (values))
 
+(defun to-string (something)
+  (format nil "~A" something))
+
 (defmacro log-it (category &rest serialize-args)
   `(when *logger*
      (funcall *logger* ,category #'(lambda ()

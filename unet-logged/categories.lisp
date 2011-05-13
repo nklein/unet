@@ -17,6 +17,13 @@
 (cl-log:defcategory :unet-send-packet-some)
 (cl-log:defcategory :unet-receive-packet)
 (cl-log:defcategory :unet-next-packet)
+(cl-log:defcategory :unet-initialize-server)
+(cl-log:defcategory :unet-server-get-single-message)
+(cl-log:defcategory :unet-server-process-single-message)
+(cl-log:defcategory :unet-server-unprocessed-single-message)
+(cl-log:defcategory :unet-server-check-for-messages)
+(cl-log:defcategory :unet-server-channels-with-messages)
+(cl-log:defcategory :unet-server-close)
 
 (cl-log:defcategory :unet-validation (or :unet-validate-hostname
                                          :unet-validate-port-number))
@@ -37,12 +44,24 @@
                                            :unet-send-packet-all
                                            :unet-send-packet-some))
 
-(cl-log:defcategory :unet-receiving-info (or :unet-receive-packet
-                                             :unet-next-packet))
+(cl-log:defcategory :unet-receiving-info
+    (or :unet-receive-packet
+        :unet-next-packet
+        :unet-server-process-single-message
+        :unet-server-unprocessed-single-message))
+
+(cl-log:defcategory :unet-server-info (or :unet-initialize-server
+                                          :unet-server-close))
+(cl-log:defcategory :unet-server-details
+    (or :unet-server-get-single-message
+        :unet-server-check-for-messages
+        :unet-server-channels-with-messages))
 
 (cl-log:defcategory :unet-all (or :unet-validation
                                   :unet-restart
                                   :unet-recipient-info
                                   :unet-channel-info
                                   :unet-sending-info
-                                  :unet-receiving-info))
+                                  :unet-receiving-info
+                                  :unet-server-info
+                                  :unet-server-details))

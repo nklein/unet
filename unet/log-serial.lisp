@@ -17,7 +17,14 @@
                                :unet-send-packet-all
                                :unet-send-packet-some
                                :unet-receive-packet
-                               :unet-next-packet))
+                               :unet-next-packet
+                               :unet-initialize-server
+                               :unet-server-get-single-message
+                               :unet-server-process-single-message
+                               :unet-server-unprocessed-single-message
+                               :unet-server-check-for-messages
+                               :unet-server-channels-with-messages
+                               :unet-server-close))
 
 (userial:make-simple-serializer :unet-host
                                 (object (vector 0 0 0 0))
@@ -39,20 +46,8 @@
 (defmethod userial:unserialize ((type (eql :unet-channel))
                                 &key (buffer userial:*buffer*)
                                 &allow-other-keys)
-  (userial:unserialize :string :buffer buffer))
+  (values (intern (userial:unserialize :string :buffer buffer) "KEYWORD")
+          buffer))
 
-(defmethod userial:serialize ((type (eql :unet-recipient-list)) value
-                              &key (buffer userial:*buffer*) &allow-other-keys)
-  (userial:serialize :uint16 (length value) :buffer buffer)
-  (loop :for rr :in value
-     :do (userial:serialize :unet-recipient rr :buffer buffer))
-  buffer)
-
-(defmethod userial:unserialize ((type (eql :unet-recipient-list))
-                                &key (buffer userial:*buffer*)
-                                &allow-other-keys)
-  (let ((len (userial:unserialize :uint16 :buffer buffer)))
-    (values (loop :for ii :from 1 :to len
-               :collecting (userial:unserialize :unet-recipient
-                                                :buffer buffer))
-            buffer)))
+(userial:make-list-serializer :unet-recipient-list :unet-recipient)
+(userial:make-list-serializer :unet-channel-list :unet-channel)
