@@ -36,25 +36,24 @@
                                         &rest args
                                         &key (filename "" filename-p)
                                         &allow-other-keys)
-  (prog1
-      (if filename-p
-          (apply #'call-next-method
-                 obj
-                 :stream (open filename :element-type '(unsigned-byte 8))
-                 args)
-        (call-next-method))
-    (next-log-message 1 obj)))
+  (if filename-p
+      (apply #'call-next-method
+             obj
+             :stream (open filename :element-type '(unsigned-byte 8))
+             args)
+      (call-next-method)))
 
 (defun next-log-message (&optional (count 1)
                                    (browser unet:*current-log-browser*))
   (with-accessors ((stream log-browser-stream)
                    (spots log-browser-spots)
-                   (reader log-header-reader)) browser
+                   (reader log-header-reader)
+                   (payload log-browser-payload)) browser
     (when (< (file-position stream) (file-length stream))
       (push (file-position stream) spots)
       (let* ((ret (nth-value 0 (funcall reader stream)))
              (payload-length (third ret)))
-        (file-position stream (+ (file-position stream) payload-length))
+        (setf payload (buffer-from-stream stream payload-length))
         (case count
           (1 ret)
           (t (next-log-message (1- count) browser)))))))
@@ -67,10 +66,11 @@
                    (payload log-browser-payload)) browser
     (setf spots (nthcdr count spots))
     (file-position stream (if spots (first spots) 0))
-    (let* ((ret (nth-value 0 (funcall reader stream)))
-           (payload-length (third ret)))
-      (setf payload (buffer-from-stream stream payload-length))
-      ret)))
+    (when spots
+      (let* ((ret (nth-value 0 (funcall reader stream)))
+             (payload-length (third ret)))
+        (setf payload (buffer-from-stream stream payload-length))
+        ret))))
 
 (defun print-log-message (&optional (stream t)
                                     (browser unet:*current-log-browser*))
