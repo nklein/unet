@@ -7,7 +7,7 @@
   :version "0.1.2011.03.07"
   :author "Patrick Stein <pat@nklein.com>"
   :licence "MIT"
-  :depends-on ("userial" "usocket")
+  :depends-on ("userial" "usocket" "cl-log")
   :components ((:module "unet"
                 :serial t
 		:components ((:file "package")
@@ -19,6 +19,7 @@
 			     (:file "raw")
 			     (:file "mux")
                              (:file "log-serial")
+                             (:file "log-categories")
                              (:file "browser")))
 	       (:static-file "README.mkdn")
 	       (:static-file "LICENSE.txt")))

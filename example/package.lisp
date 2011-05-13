@@ -13,4 +13,4 @@
            :packet))
 
 (defpackage :unet-example-user
-  (:use :cl :cl-user :unet-example :unet-logged :unet :userial :cl-log))
+  (:use :cl :cl-user :unet-example :unet :userial :cl-log))

@@ -1,7 +1,7 @@
 ;; Copyright (c) 2011 nklein software
 ;; MIT License. See included LICENSE.txt file for licensing details.
 
-(in-package :unet-logged)
+(in-package :unet)
 
 (defun log-unet-messages (category form-generator)
   (cl-log:log-message category (funcall form-generator)))

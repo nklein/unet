@@ -1,7 +1,7 @@
 ;; Copyright (c) 2011 nklein software
 ;; MIT License. See included LICENSE.txt file for licensing details.
 
-(in-package :unet-logged)
+(in-package :unet)
 
 (cl-log:defcategory :unet-validate-hostname)
 (cl-log:defcategory :unet-specify-new-hostname)

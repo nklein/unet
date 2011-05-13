@@ -7,7 +7,7 @@
   :version "0.1.2011.03.07"
   :author "Patrick Stein <pat@nklein.com>"
   :licence "MIT"
-  :depends-on ("unet-logged" "unet" "cl-log")
+  :depends-on ("unet" "cl-log")
   :components ((:module "example"
                 :serial t
 		:components ((:file "package")

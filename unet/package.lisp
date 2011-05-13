@@ -4,6 +4,8 @@
 (defpackage :unet
   (:use :cl)
   (:export :set-logger
+             :start-logging
+             :stop-logging
            :invalid-hostname-error
 	     :invalid-hostname-given
 	     :no-such-host-error
@@ -25,7 +27,9 @@
 	     :send-packet
              :next-packet
 	   :raw-channel
-           :*current-log-browser*
-           :log-browser
-           :next-log-message
-           :previous-log-message))
+           :set-log-browser
+             :*current-log-browser*
+             :log-browser
+             :next-log-message
+             :previous-log-message
+             :print-log-message))
