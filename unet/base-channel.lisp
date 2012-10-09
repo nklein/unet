@@ -4,15 +4,15 @@
   (:import-from :unet-defchannel :defchannel)
   (:export :base-channel
            :channel-name
-           :channel-no-name-specified))
+           :channel-no-name-specified-error))
 
 (in-package :unet-base-channel)
 
-(define-condition channel-no-name-specified (error)
+(define-condition channel-no-name-specified-error (error)
   ())
 
 (defchannel base-channel ()
   (:channel (channel-name :initarg :name
                           :type keyword
                           :reader channel-name))
-  (:channel-initargs :name (error 'channel-no-name-specified)))
+  (:channel-initargs :name (error 'channel-no-name-specified-error)))

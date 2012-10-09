@@ -12,6 +12,5 @@
                 :serial t
 		:components ((:file "defchannel")
                              (:file "base-channel")
-                             (:file "channel")
                              (:file "api")))
 	       (:static-file "LICENSE.txt")))
