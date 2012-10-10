@@ -7,14 +7,8 @@
   :version "0.1.2012.10.02"
   :author "Patrick Stein <pat@nklein.com>"
   :licence "MIT"
-  :depends-on ("userial" "conduit-packages")
-  :components ((:module "sockets"
-                :components ((:file "interface")
-                             (:file "base-socket")
-                             (:file "api" :depends-on ("interface"
-                                                       "base-socket"))))
-               (:module "unet"
-                :depends-on "sockets"
+  :depends-on ("userial" "unet-sockets" "conduit-packages")
+  :components ((:module "unet"
 		:components ((:file "defchannel")
                              (:file "base-channel" :depends-on ("defchannel"))
                              (:file "api" :depends-on ("defchannel"
