@@ -32,9 +32,9 @@
 ;;;---------------------------------------------------------------------------
 ;;; Visibility: Public via the UNET-SOCKETS package
 (defmethod sockets-get-address
-    ((sockets-interface fake-sockets-interface) hostname)
+    ((sockets-interface fake-sockets-interface) (hostname string))
   "This method implements the UNET-SOCKETS:SOCKETS-GET-ADDRESS method for the FAKE-SOCKETS-INTERFACE.  For the FAKE-SOCKETS-INTERFACE, we simply make a keyword from the given HOSTNAME as we do not need the IP-ADDRESS to actually mean anything in the outside world."
-  (values (intern hostname "KEYWORD")))
+  (values (intern (string-upcase hostname) "KEYWORD")))
 
 ;;;---------------------------------------------------------------------------
 ;;; Visibility: Public via the UNET-SOCKETS package
