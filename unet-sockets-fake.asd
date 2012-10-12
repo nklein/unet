@@ -13,7 +13,7 @@
       :components
         ((:module "fake"
           :components ((:file "interface")
-                       (:file "socket")
+                       (:file "socket" :depends-on ("interface"))
                        (:file "methods" :depends-on ("interface"
                                                      "socket"))
                        (:file "api" :depends-on ("interface"))))))))
