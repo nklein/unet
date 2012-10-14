@@ -1,13 +1,9 @@
 (defpackage :unet-sockets-base-socket
   (:use :cl)
-  (:export :sockets-base-socket
-           :sockets-send-datagram
-           :sockets-poll-datagram))
+  (:export :base-socket))
 
 (in-package :unet-sockets-base-socket)
 
-(defclass sockets-base-socket ()
-  ())
-
-(defgeneric sockets-send-datagram (sockets-base-socket data ip-address port))
-(defgeneric sockets-poll-datagram (sockets-base-socket))
+(defclass base-socket ()
+  ()
+  (:documentation "The BASE-SOCKET class is the base class for all sockets returned from specializations of the CREATE-DATAGRAM-SOCKET method"))

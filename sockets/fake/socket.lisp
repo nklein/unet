@@ -8,11 +8,10 @@
 ;;;             of this directory.
 (defpackage :unet-sockets-fake-socket
   (:use :cl)
-  (:documentation "This package defines the FAKE-SOCKET class.  The FAKE-SOCKET class extends the UNET-SOCKETS:SOCKETS-BASE-SOCKET class.  It is the type of SOCKETS-BASE-SOCKET returned by the SOCKETS-CREATE-DATAGRAM-SOCKET when called on the FAKE-SOCKETS-INTERFACE.")
   (:import-from :jpl-queues
                 #:unbounded-fifo-queue)
   (:import-from :unet-sockets
-                #:sockets-base-socket)
+                #:base-socket)
   (:import-from :unet-sockets-fake-interface
                 #:fake-sockets-interface)
   (:export :fake-socket

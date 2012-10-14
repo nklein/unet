@@ -14,6 +14,25 @@
         ((:module "fake"
           :components ((:file "interface")
                        (:file "socket" :depends-on ("interface"))
-                       (:file "methods" :depends-on ("interface"
-                                                     "socket"))
+                       (:file "make-hash-key")
+                       (:file "get-socket-from-interface"
+                              :depends-on ("interface"
+                                           "make-hash-key"))
+                       (:file "add-socket-to-interface"
+                              :depends-on ("interface"
+                                           "make-hash-key"
+                                           "get-socket-from-interface"))
+                       (:file "get-address" :depends-on ("interface"))
+                       (:file "create-datagram-socket"
+                              :depends-on ("interface"
+                                           "socket"
+                                           "add-socket-to-interface"))
+                       (:file "send-datagram"
+                              :depends-on ("interface"
+                                           "socket"
+                                           "get-socket-from-interface"))
+                       (:file "poll-datagram"
+                              :depends-on ("interface"
+                                           "socket"
+                                           "get-socket-from-interface"))
                        (:file "api" :depends-on ("interface"))))))))
