@@ -15,8 +15,12 @@
                      (:file "utils/let-gensyms")
                      
                      ;;; logging functions
+                     (:file "logging/base")
                      (:file "logging/cl-log"
-                        :depends-on ("utils/let-gensyms"))
+                        :depends-on ("logging/base"))
+                     (:file "logging/api"
+                        :depends-on ("logging/base"
+                                     "logging/cl-log"))
 
                      ;;; other system files
                      (:static-file "README.mkdn")

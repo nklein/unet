@@ -6,102 +6,62 @@
 
 (defpackage :unet-logging-cl-log
   (:use :cl)
-  (:export :defcategory
-           :set-string-log-file
-           :set-binary-log-file
-           :log-string
-           :log-binary)
-  (:import-from :unet-utils-let-gensyms :let-gensyms))
+  
+  (:export :cl-log-logger
+           :log-string)
+  
+  (:import-from :unet-logging-base :logger
+                                   :add-logger-category
+                                   :start-logging
+                                   :stop-logging))
 
+;;; Hannah has dibs.
 (in-package :unet-logging-cl-log)
 
-;;; Prepare a set of categories that will not interfere with other
-;;; users of cl-log.
-(defvar *categories* (make-instance 'cl-log:category-set))
+;;; Logger class based on cl-log.
+(defclass cl-log-logger (logger)
+  ((manager :initform (make-instance 'cl-log:log-manager
+                         :categories (make-instance 'cl-log:category-set)
+                         :message-class 'cl-log:formatted-message)
+            :reader get-cl-log-manager)))
 
-;;; Prepare some log managers
-(defvar *string-log-manager* nil)
-(defvar *binary-log-manager* nil)
+;;; Private function for turning a category list into a filter
+(defun make-category-decl (category subcategories)
+  (list* 'or category subcategories))
 
-(defmacro ensure-logger (logger message-class)
-  `(progn
-     (unless ,logger
-       (setf ,logger (make-instance 'cl-log:log-manager
-                                    :message-class ,message-class)))
-     ,logger))
+(defun logger-categories (logger)
+  (cl-log:log-manager-category-set (get-cl-log-manager logger)))
 
-(defun get-string-logger ()
-  (ensure-logger *string-log-manager* 'cl-log:formatted-message))
+;;; Method for adding a logger category
+(defmethod add-logger-category ((logger cl-log-logger)
+                                category &rest subcategories)
+  (cl-log:defcategory-fn category
+      (make-category-decl category subcategories)
+      (logger-categories logger)))
 
-(defun get-binary-logger ()
-  (ensure-logger *binary-log-manager* 'cl-log:base-message))
-
+;;; Private function for turning a category list into a filter
 (defun make-category-filter (categories)
   (case (length categories)
     (0 nil)
     (1 (first categories))
-    (t (append '(or) categories))))
+    (t (list* 'or categories))))
 
-(defmacro set-log-file (logfile &key messenger-name
-                                     messenger-class
-                                     manager
-                                     categories)
-  (let-gensyms ((logfile-var logfile)
-                (name-var messenger-name)
-                (class-var messenger-class)
-                (manager-var manager)
-                (categories-var categories))
-    
-    `(cond
-       (,logfile-var (cl-log:start-messenger
-                        ,class-var
-                        :name ,name-var
-                        :manager ,manager-var
-                        :filename ,logfile-var
-                        :filter (make-category-filter ,categories-var)))
-       
-       (t            (cl-log:stop-messenger
-                        ,name-var
-                        :manager ,manager-var)))))
+;;; Method for starting logging
+(defmethod start-logging ((logger cl-log-logger) stream handle &rest categories)
+  (cl-log:start-messenger 'cl-log:text-stream-messenger
+                          :stream stream
+                          :name handle
+                          :manager (get-cl-log-manager logger)
+                          :filter (make-category-filter categories)))
 
-;;; Exported macro defcategory
-(defmacro defcategory (category &rest subcategories)
-  `(cl-log:defcategory ,category
-                       ,(unless (null subcategories)
-                           `(or ,category ,@subcategories))
-     *categories*))
+;;; Method for stopping logging
+(defmethod stop-logging ((logger cl-log-logger) handle)
+  (cl-log:stop-messenger handle
+                         :manager (get-cl-log-manager logger)))
 
-;;; Exported function set-string-log-file
-(defun set-string-log-file (logfile &rest categories)
-  (set-log-file logfile
-                :messenger-name :string-messenger
-                :messenger-class 'cl-log:text-file-messenger
-                :manager (get-string-logger)
-                :categories categories))
-
-;;; Exported function set-binary-log-file
-(defun set-binary-log-file (logfile &rest categories)
-  (set-log-file logfile
-                :messenger-name :binary-messenger
-                :messenger-class 'cl-log:text-file-messenger
-                :manager (get-binary-logger)
-                :categories categories))
-
-
-
-
-
-
-
-
-;;; Exported function log-string
-(defmacro log-string (category string)
-  `(cl-log:log-manager-message (get-string-logger)
-                               ,category
-                               ,string))
-
-;;; Exported function log-string
-(defmacro log-binary (category binary)
-  `(cl-log:log-manager-message (get-binary-logger)
-                               ,category
-                               ,binary))
+;;; Exported macro for logging a string
+(defmacro log-string (logger category string)
+  (let ((manager-var (gensym "MANAGER-")))
+    `(cl-log:log-manager-message (get-cl-log-manager ,logger)
+                                 ,category
+                                 ,string)))
