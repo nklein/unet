@@ -7,6 +7,8 @@
 (defpackage :unet-logging-cl-log
   (:use :cl)
   (:export :defcategory
+           :set-string-log-file
+           :set-binary-log-file
            :log-string
            :log-binary)
   (:import-from :unet-utils-let-gensyms :let-gensyms))
@@ -34,20 +36,33 @@
 (defun get-binary-logger ()
   (ensure-logger *binary-log-manager* 'cl-log:base-message))
 
+(defun make-category-filter (categories)
+  (case (length categories)
+    (0 nil)
+    (1 (first categories))
+    (t (append '(or) categories))))
+
 (defmacro set-log-file (logfile &key messenger-name
                                      messenger-class
-                                     manager)
+                                     manager
+                                     categories)
   (let-gensyms ((logfile-var logfile)
                 (name-var messenger-name)
                 (class-var messenger-class)
-                (manager-var manager))
+                (manager-var manager)
+                (categories-var categories))
+    
     `(cond
-       (,logfile-var (cl-log:start-messenger ,class-var
-                                             :name ,name-var
-                                             :manager ,manager-var
-                                             :filename ,logfile-var))
-       (t (cl-log:stop-messenger ,name-var
-                                 :manager ,manager-var)))))
+       (,logfile-var (cl-log:start-messenger
+                        ,class-var
+                        :name ,name-var
+                        :manager ,manager-var
+                        :filename ,logfile-var
+                        :filter (make-category-filter ,categories-var)))
+       
+       (t            (cl-log:stop-messenger
+                        ,name-var
+                        :manager ,manager-var)))))
 
 ;;; Exported macro defcategory
 (defmacro defcategory (category &rest subcategories)
@@ -57,27 +72,36 @@
      *categories*))
 
 ;;; Exported function set-string-log-file
-(defun set-string-log-file (logfile)
+(defun set-string-log-file (logfile &rest categories)
   (set-log-file logfile
-                :messenger-name "string-messenger"
+                :messenger-name :string-messenger
                 :messenger-class 'cl-log:text-file-messenger
-                :manager (get-string-logger)))
+                :manager (get-string-logger)
+                :categories categories))
 
 ;;; Exported function set-binary-log-file
-(defun set-binary-log-file (logfile)
+(defun set-binary-log-file (logfile &rest categories)
   (set-log-file logfile
-                :messenger-name "binary-messenger"
+                :messenger-name :binary-messenger
                 :messenger-class 'cl-log:text-file-messenger
-                :manager (get-binary-logger)))
+                :manager (get-binary-logger)
+                :categories categories))
+
+
+
+
+
+
+
 
 ;;; Exported function log-string
 (defmacro log-string (category string)
-  `(cl-log:log-manager-message *string-log-manager*
+  `(cl-log:log-manager-message (get-string-logger)
                                ,category
                                ,string))
 
 ;;; Exported function log-string
 (defmacro log-binary (category binary)
-  `(cl-log:log-manager-message *binary-log-manager*
+  `(cl-log:log-manager-message (get-binary-logger)
                                ,category
                                ,binary))
