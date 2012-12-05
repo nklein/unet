@@ -11,10 +11,7 @@
   :depends-on ("userial" "cl-log")
   :components
     ((:module "src"
-        :components (;;; utility functions
-                     (:file "utils/let-gensyms")
-                     
-                     ;;; logging functions
+        :components (;;; logging functions
                      (:file "logging/base")
                      (:file "logging/cl-log"
                         :depends-on ("logging/base"))
