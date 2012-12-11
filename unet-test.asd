@@ -12,5 +12,9 @@
   :components
     ((:module "src"
         :components (;;; logging function test
-                     (:file "logging/test")
+                     (:file "test/base")
+                     (:file "logging/test"
+                        :depends-on ("test/base"))
+                     (:file "network/test"
+                        :depends-on ("test/base"))
                      (:static-file "LICENSE.txt")))))

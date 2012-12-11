@@ -18,7 +18,12 @@
                      (:file "logging/api"
                         :depends-on ("logging/base"
                                      "logging/cl-log"))
-
+                     
+                     ;;; network functions
+                     (:file "network/api")
+                     (:file "network/mock"
+                        :depends-on ("network/api"))
+                     
                      ;;; other system files
                      (:static-file "README.mkdn")
                      (:static-file "LICENSE.txt")))))
