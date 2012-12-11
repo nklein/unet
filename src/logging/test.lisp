@@ -20,10 +20,11 @@
 
 ;;; Define a test that checks if something matches a regex
 (nst:def-criterion (:regex (needle) (haystack))
-  (if (cl-ppcre:scan needle haystack)
-      (nst:make-success-report)
-    (nst:make-failure-report :format "Could not find ~S in ~S"
-                             :args (list needle haystack))))
+  (let ((scanner (cl-ppcre:create-scanner needle :single-line-mode t)))
+    (if (cl-ppcre:scan scanner haystack)
+        (nst:make-success-report)
+        (nst:make-failure-report :format "Could not find ~S in ~S"
+                                 :args (list needle haystack)))))
 
 ;;; Make sure all of the expected API points exist
 (nst:def-test-group existence-tests ()
@@ -73,11 +74,11 @@
               (add-logger-category logger :animal :mammal :fish)))
   (logger (make-logger)))
 
-(defmacro with-logging-to-stream ((logger) &body body)
+(defmacro with-logging-to-string ((logger &rest categories) &body body)
   (let ((handle (gensym "LOGGER-HANDLE-"))
         (stream (gensym "STREAM-")))
     `(with-output-to-string (,stream)
-       (start-logging ,logger ,stream ',handle)
+       (start-logging ,logger ,stream ',handle ,@categories)
        (unwind-protect
             (progn ,@body)
          (stop-logging ,logger ',handle)))))
@@ -87,5 +88,23 @@
     (log-string logger :dog "Woof"))
   
   (nst:def-test log-message-works (:regex ".*DOG Woof$")
-    (with-logging-to-stream (logger)
-      (log-string logger :dog "Woof"))))
+    (with-logging-to-string (logger)
+      (log-string logger :dog "Woof")))
+  
+  (nst:def-test log-message-for-subcategory (:regex ".*DOG Woof$")
+    (with-logging-to-string (logger :mammal)
+      (log-string logger :dog "Woof")))
+  
+  (nst:def-test log-message-unclaimed (:equal "")
+    (with-logging-to-string (logger :mammal)
+      (log-string logger :fish "Bloop")))
+  
+  (nst:def-test log-messages-to-different-logs
+      (:values (:regex ".*CAT Meow.*DOG Woof$") (:regex ".*FISH Bloop$"))
+    (let (m f)
+      (setf m (with-logging-to-string (logger :mammal)
+                (setf f (with-logging-to-string (logger :fish)
+                          (log-string logger :cat "Meow")
+                          (log-string logger :dog "Woof")
+                          (log-string logger :fish "Bloop")))))
+      (values m f))))

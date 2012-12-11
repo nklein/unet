@@ -27,7 +27,7 @@
 
 ;;; Private function for turning a category list into a filter
 (defun make-category-decl (category subcategories)
-  (list* 'or category subcategories))
+  `(or ,category ,@subcategories))
 
 (defun logger-categories (logger)
   (cl-log:log-manager-category-set (get-cl-log-manager logger)))
@@ -44,7 +44,7 @@
   (case (length categories)
     (0 nil)
     (1 (first categories))
-    (t (list* 'or categories))))
+    (t `(or ,@categories))))
 
 ;;; Method for starting logging
 (defmethod start-logging ((logger cl-log-logger) stream handle &rest categories)
