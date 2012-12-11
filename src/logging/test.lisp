@@ -10,41 +10,17 @@
 
 (in-package :unet-logging-test)
 
-;;; Define a test that checks if something is a function or macro
-(nst:def-criterion (:function-ish () (sym))
-  (cond
-    ((fboundp sym) (nst:make-success-report))
-    ((not (null (macro-function sym))) (nst:make-success-report))
-    (t (nst:make-failure-report :format "No such function or macro ~A"
-                                :args (list sym)))))
-
-;;; Define a test that checks if something matches a regex
-(nst:def-criterion (:regex (needle) (haystack))
-  (let ((scanner (cl-ppcre:create-scanner needle :single-line-mode t)))
-    (if (cl-ppcre:scan scanner haystack)
-        (nst:make-success-report)
-        (nst:make-failure-report :format "Could not find ~S in ~S"
-                                 :args (list needle haystack)))))
-
 ;;; Make sure all of the expected API points exist
 (nst:def-test-group existence-tests ()
   (nst:def-test logging-package-exists (:true)
     (find-package :unet-logging))
   
-  (nst:def-test make-logger-exists (:function-ish)
-    'unet-logging:make-logger)
-  
-  (nst:def-test add-logger-category-exists (:function-ish)
-    'unet-logging:add-logger-category)
-
-  (nst:def-test start-logging-exists (:function-ish)
-    'unet-logging:start-logging)
-
-  (nst:def-test stop-logging-exists (:function-ish)
-    'unet-logging:stop-logging)
-
-  (nst:def-test log-string (:function-ish)
-    'unet-logging:stop-logging))
+  (nst:def-test logging-functions-exist (:each (:function-ish))
+    '(unet-logging:make-logger
+      unet-logging:add-logger-category
+      unet-logging:start-logging
+      unet-logging:stop-logging
+      unet-logging:log-string)))
 
 ;;; Make sure we can prepare a logger
 (nst:def-fixtures simple-logger
