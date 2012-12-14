@@ -43,12 +43,12 @@
 ;;; Make sure we can log a simple message
 (nst:def-fixtures categoried-logger
     (:documentation "Defines a logger LOGGER with some basic categories."
+     :special (logger)
      :setup (progn
               (add-logger-category logger :fish)
               (add-logger-category logger :primate :ape :chimp :human)
               (add-logger-category logger :mammal :dog :cat :mouse :primate)
-              (add-logger-category logger :animal :mammal :fish)))
-  (logger (make-logger)))
+              (add-logger-category logger :animal :mammal :fish))))
 
 (defmacro with-logging-to-string ((logger &rest categories) &body body)
   (let ((handle (gensym "LOGGER-HANDLE-"))
@@ -59,7 +59,7 @@
             (progn ,@body)
          (stop-logging ,logger ',handle)))))
 
-(nst:def-test-group log-simple-messages (categoried-logger)
+(nst:def-test-group log-simple-messages (simple-logger categoried-logger)
   (nst:def-test log-a-message-to-nowhere (:not :err)
     (log-string logger :dog "Woof"))
   

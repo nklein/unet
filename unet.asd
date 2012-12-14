@@ -8,7 +8,7 @@
   :author "Patrick Stein <pat@nklein.com>"
   :encoding :utf-8
   :licence "MIT"
-  :depends-on ("userial" "cl-log")
+  :depends-on ("userial" "cl-log" "jpl-queues")
   :components
     ((:module "src"
         :components (;;; logging functions

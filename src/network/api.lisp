@@ -5,7 +5,10 @@
   (:use :cl)
   
   (:export :make-remote-address
-           :create-datagram-socket))
+           :create-datagram-socket
+           :send-datagram
+           :recv-datagram
+           :close-socket))
 
 ;;; I love Hannah.
 (in-package :unet-network)

@@ -21,3 +21,48 @@
   
   (nst:def-test network-mock-network-provider (:true)
     (find-class 'unet-network-mock:network-provider)))
+
+;;; Make sure we can prepare a mock-network-provider
+(nst:def-fixtures mock-network-provider
+    (:documentation "Defines a mock network provider called PROVIDER")
+  (provider (make-instance 'unet-network-mock:network-provider)))
+
+(nst:def-test-group mock-make-provider-tests (mock-network-provider)
+  (nst:def-test mock-make-provider (:true)
+    provider))
+
+(nst:def-test-group mock-make-remote-address-tests (mock-network-provider)
+  (nst:def-test mock-make-remote-address (:true)
+    (unet-network:make-remote-address provider "localhost" 1187))
+  
+  (nst:def-test mock-make-remote-address-equalp (:forms-equal)
+    (unet-network:make-remote-address provider "localhost" 1187)
+    (unet-network:make-remote-address provider "localhost" 1187))
+  
+  (nst:def-test mock-make-remote-address-caseless (:forms-equal)
+    (unet-network:make-remote-address provider "localHost" 1187)
+    (unet-network:make-remote-address provider "LOCALHOST" 1187)))
+
+;;; Prepare sockets for alice and bob
+(nst:def-fixtures alice-and-bob
+    (:documentation "Defines a socket called ALICE on port 31337 and another called BOB on port 54321"
+     :special (provider))
+  (alice (unet-network:create-datagram-socket provider 31337))
+  (bob (unet-network:create-datagram-socket provider 54321)))
+
+(nst:def-test-group mock-create-datagram-socket-tests (mock-network-provider
+                                                       alice-and-bob)
+  (nst:def-test mock-create-datagram-socket (:each :true)
+    (list alice bob))
+  
+  (nst:def-test mock-no-message (:values (:eq nil) (:eq nil))
+    (unet-network:recv-datagram alice))
+  
+  (nst:def-test trouble-with-values (:values (:equal "Hello") (:equal 'world))
+    (values "Hello" 'world))
+
+  (nst:def-test mock-single-message (:values (:equal "Hello")
+                                             (:equal alice))
+    (progn
+      (unet-network:send-datagram alice "Hello" bob)
+      (unet-network:recv-datagram bob))))
