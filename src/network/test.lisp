@@ -1,6 +1,12 @@
 (defpackage :unet-network-test
-  (:use :cl
-        :unet-network))
+  (:use :cl)
+  
+  (:import-from :unet-network
+                :make-remote-address
+                :create-datagram-socket
+                :send-datagram
+                :recv-datagram
+                :close-socket))
 
 (in-package :unet-network-test)
 
