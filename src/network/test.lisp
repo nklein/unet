@@ -1,5 +1,6 @@
 (defpackage :unet-network-test
-  (:use :cl))
+  (:use :cl
+        :unet-network))
 
 (in-package :unet-network-test)
 
@@ -14,6 +15,7 @@
       unet-network:send-datagram
       unet-network:recv-datagram
       unet-network:close-socket)))
+
 
 (nst:def-test-group mock-existence-tests ()
   (nst:def-test network-mock-package-exists (:true)
@@ -33,22 +35,22 @@
 
 (nst:def-test-group mock-make-remote-address-tests (mock-network-provider)
   (nst:def-test mock-make-remote-address (:true)
-    (unet-network:make-remote-address provider "localhost" 1187))
+    (make-remote-address provider "localhost" 1187))
   
   (nst:def-test mock-make-remote-address-equalp (:forms-equal)
-    (unet-network:make-remote-address provider "localhost" 1187)
-    (unet-network:make-remote-address provider "localhost" 1187))
+    (make-remote-address provider "localhost" 1187)
+    (make-remote-address provider "localhost" 1187))
   
   (nst:def-test mock-make-remote-address-caseless (:forms-equal)
-    (unet-network:make-remote-address provider "localHost" 1187)
-    (unet-network:make-remote-address provider "LOCALHOST" 1187)))
+    (make-remote-address provider "localHost" 1187)
+    (make-remote-address provider "LOCALHOST" 1187)))
 
 ;;; Prepare sockets for alice and bob
 (nst:def-fixtures alice-and-bob
     (:documentation "Defines a socket called ALICE on port 31337 and another called BOB on port 54321"
      :special (provider))
-  (alice (unet-network:create-datagram-socket provider 31337))
-  (bob (unet-network:create-datagram-socket provider 54321)))
+  (alice (create-datagram-socket provider 31337))
+  (bob (create-datagram-socket provider 54321)))
 
 (nst:def-test-group mock-create-datagram-socket-tests (mock-network-provider
                                                        alice-and-bob)
@@ -56,22 +58,22 @@
     (list alice bob))
   
   (nst:def-test mock-no-message (:values (:eq nil) (:eq nil))
-    (unet-network:recv-datagram alice))
+    (recv-datagram alice))
   
   (nst:def-test mock-single-message (:values (:equal "Hello")
                                              (:equal alice))
     (progn
-      (unet-network:send-datagram alice "Hello" bob)
-      (unet-network:recv-datagram bob)))
+      (send-datagram alice "Hello" bob)
+      (recv-datagram bob)))
   
   (nst:def-test mock-only-one-message (:values (:eq nil) (:eq nil))
     (progn
-      (unet-network:send-datagram alice "Hello" bob)
-      (unet-network:recv-datagram bob)
-      (unet-network:recv-datagram bob)))
+      (send-datagram alice "Hello" bob)
+      (recv-datagram bob)
+      (recv-datagram bob)))
   
   (nst:def-test mock-no-messages-after-close (:values (:eq nil) (:eq nil))
     (progn
-      (unet-network:send-datagram alice "Hello" bob)
-      (unet-network:close-socket bob)
-      (unet-network:recv-datagram bob))))
+      (send-datagram alice "Hello" bob)
+      (close-socket bob)
+      (recv-datagram bob))))
