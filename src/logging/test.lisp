@@ -16,11 +16,11 @@
     (find-package :unet-logging))
   
   (nst:def-test logging-functions-exist (:each (:function-ish))
-    '(unet-logging:make-logger
-      unet-logging:add-logger-category
-      unet-logging:start-logging
-      unet-logging:stop-logging
-      unet-logging:log-string)))
+    '(make-logger
+      add-logger-category
+      start-logging
+      stop-logging
+      log-string)))
 
 ;;; Make sure we can prepare a logger
 (nst:def-fixtures simple-logger
