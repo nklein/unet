@@ -58,11 +58,20 @@
   (nst:def-test mock-no-message (:values (:eq nil) (:eq nil))
     (unet-network:recv-datagram alice))
   
-  (nst:def-test trouble-with-values (:values (:equal "Hello") (:equal 'world))
-    (values "Hello" 'world))
-
   (nst:def-test mock-single-message (:values (:equal "Hello")
                                              (:equal alice))
     (progn
       (unet-network:send-datagram alice "Hello" bob)
+      (unet-network:recv-datagram bob)))
+  
+  (nst:def-test mock-only-one-message (:values (:eq nil) (:eq nil))
+    (progn
+      (unet-network:send-datagram alice "Hello" bob)
+      (unet-network:recv-datagram bob)
+      (unet-network:recv-datagram bob)))
+  
+  (nst:def-test mock-no-messages-after-close (:values (:eq nil) (:eq nil))
+    (progn
+      (unet-network:send-datagram alice "Hello" bob)
+      (unet-network:close-socket bob)
       (unet-network:recv-datagram bob))))

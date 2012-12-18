@@ -99,12 +99,11 @@
 (defmethod recv-datagram ((datagram-socket symbol))
   (let ((network-provider (socket-network-provider datagram-socket)))
     (with-provider-guard (network-provider)
-      (bwhen (queue (find-queue (get-queues network-provider) datagram-socket))
-        (if (jpl-queues:empty? queue)
-            (values nil nil)
+      (let ((queue (find-queue (get-queues network-provider) datagram-socket)))
+        (if (and queue (not (jpl-queues:empty? queue)))
             (destructuring-bind (datagram from) (jpl-queues:dequeue queue)
-              (format t "GOT: (~A) from (~A)~%" datagram from)
-              (values datagram from)))))))
+              (values datagram from))
+            (values nil nil))))))
 
 ;;; Method to close a datagram socket
 (defmethod close-socket (datagram-socket)
