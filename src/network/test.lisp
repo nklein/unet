@@ -96,49 +96,6 @@
   (nst:def-test mock-make-provider (:true)
     provider))
 
-(defun run-send-recv (&key local remote (to-send 0) (to-recv 0))
-  (let ((counter 0))
-    (labels ((run (to-send to-recv)
-               #+thread-support
-               (bordeaux-threads:thread-yield)
-               (flet ((send ()
-                        (let ((msg (format nil "Hi ~A" (incf counter))))
-                          (send-datagram local msg remote))
-                        (run (1- to-send) to-recv))
-                      
-                      (recv ()
-                        (multiple-value-bind (msg from) (recv-datagram local)
-                          (cond
-                            (from
-                            
-                             (format t "~A GOT: ~A from ~A~%"
-                                     (incf counter) msg from)
-                             (run to-send (1- to-recv)))
-                            (t (run to-send to-recv)))))
-                      
-                      (cont ()
-                        (incf counter)
-                        (run to-send to-recv)))
-                 
-                 (case (mod counter 3)
-                   (0 (cond
-                        ((plusp to-send) (send))
-                        ((plusp to-recv) (recv))))
-                   (1 (cond
-                        ((plusp to-send) (send))
-                        (t (cont))))
-                   (2 (cond
-                        ((plusp to-recv) (recv))
-                        (t (cont))))))))
-
-      (lambda () (run to-send to-recv)))))
-
-(defun run-send-recv-thread (&key local remote (to-send 0) (to-recv 0))
-  (bordeaux-threads:make-thread (run-send-recv :local local
-                                               :remote remote
-                                               :to-send to-send
-                                               :to-recv to-recv)))
-
 (defun wait-for-message (local)
   #+thread-support
   (bordeaux-threads:thread-yield)
@@ -147,12 +104,79 @@
         (values msg from)
         (wait-for-message local))))
 
+;;; Define a class used to create a thread that does some number of
+;;; sends and receives.
+(defclass send-recv-state ()
+  ((local :initarg :local)
+   (remote :initarg :remote)
+   (to-send :initarg :to-send)
+   (to-recv :initarg :to-recv)
+   (counter :initform 0)
+   (thread :accessor thread)
+   (output :accessor output :initform "")))
+
+(defgeneric send (state))
+(defgeneric recv (state))
+(defgeneric cont (state))
+
+(defmethod send ((state send-recv-state))
+  (with-slots (to-send counter local remote) state
+    (when (plusp to-send)
+      (let ((msg (format nil "Hi ~A" counter)))
+        (send-datagram local msg remote))
+      (decf to-send)))
+  (cont state))
+
+(defmethod recv ((state send-recv-state))
+  (with-slots (to-recv counter local remote) state
+    (multiple-value-bind (msg from) (wait-for-message local)
+      (when from
+        (format t "~A GOT: ~A~%" (incf counter) msg)
+        (decf to-recv))))
+  (cont state))
+
+(defmethod cont ((state send-recv-state))
+  (with-slots (counter to-send to-recv) state
+    (unless (and (zerop to-send)
+                 (zerop to-recv))
+      #+thread-support
+      (bordeaux-threads:thread-yield)
+      (case (mod (incf counter) 3)
+        ((0 1) (send state))
+        (2 (recv state))))))
+
+(defun make-thread-func (state)
+  (lambda ()
+    (setf (output state) (with-output-to-string (*standard-output*)
+                           (cont state)))))
+
+#+thread-support
+(defun run-send-recv-thread (&key local remote (to-send 0) (to-recv 0))
+  (let* ((state (make-instance 'send-recv-state :local local
+                                                :remote remote
+                                                :to-send to-send
+                                                :to-recv to-recv))
+         (thread-func (make-thread-func state))
+         (thread (bordeaux-threads:make-thread thread-func)))
+    (setf (thread state) thread)
+    state))
+
 #+thread-support
 (nst:def-test-group mock-mt-socket-tests (mock-mt-network-provider
                                           alice-and-bob)
-  (nst:def-test mock-mt-send-one-message (:values (:equal "Hi 1")
-                                               (:equal alice))
-    (let ((thread (run-send-recv-thread :local alice :remote bob :to-send 1)))
+  (nst:def-test mock-mt-recv-one-message (:values (:equal "Hi 1")
+                                                  (:equal alice))
+    (let ((state (run-send-recv-thread :local alice
+                                       :remote bob
+                                       :to-send 1)))
       (unwind-protect
           (wait-for-message bob)
-        (bordeaux-threads:join-thread thread)))))
+        (bordeaux-threads:join-thread (thread state)))))
+  
+  (nst:def-test mock-mt-send-one-message (:regex "^3 GOT: Hi$")
+    (let ((state (run-send-recv-thread :local alice
+                                       :remote bob
+                                       :to-recv 1)))
+      (send-datagram bob "Hi" alice)
+      (bordeaux-threads:join-thread (thread state))
+      (output state))))

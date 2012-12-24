@@ -17,4 +17,5 @@
                         :depends-on ("test/base"))
                      (:file "network/test"
                         :depends-on ("test/base"))
+                     (:file "test/run")
                      (:static-file "LICENSE.txt")))))
