@@ -113,7 +113,7 @@
    (to-recv :initarg :to-recv)
    (counter :initform 0)
    (thread :accessor thread)
-   (output :accessor output :initform "")))
+   (received :accessor received :initform nil)))
 
 (defgeneric send (state))
 (defgeneric recv (state))
@@ -128,10 +128,10 @@
   (cont state))
 
 (defmethod recv ((state send-recv-state))
-  (with-slots (to-recv counter local remote) state
+  (with-slots (to-recv counter local received) state
     (multiple-value-bind (msg from) (wait-for-message local)
       (when from
-        (format t "~A GOT: ~A~%" (incf counter) msg)
+        (setf received (append received (list (list msg from))))
         (decf to-recv))))
   (cont state))
 
@@ -145,19 +145,14 @@
         ((0 1) (send state))
         (2 (recv state))))))
 
-(defun make-thread-func (state)
-  (lambda ()
-    (setf (output state) (with-output-to-string (*standard-output*)
-                           (cont state)))))
-
 #+thread-support
 (defun run-send-recv-thread (&key local remote (to-send 0) (to-recv 0))
   (let* ((state (make-instance 'send-recv-state :local local
                                                 :remote remote
                                                 :to-send to-send
                                                 :to-recv to-recv))
-         (thread-func (make-thread-func state))
-         (thread (bordeaux-threads:make-thread thread-func)))
+         (thread (bordeaux-threads:make-thread (lambda ()
+                                                 (cont state)))))
     (setf (thread state) thread)
     state))
 
@@ -173,10 +168,11 @@
           (wait-for-message bob)
         (bordeaux-threads:join-thread (thread state)))))
   
-  (nst:def-test mock-mt-send-one-message (:regex "^3 GOT: Hi$")
+  (nst:def-test mock-mt-send-one-message (:seq (:seq (:equal "Hi")
+                                                     (:true)))
     (let ((state (run-send-recv-thread :local alice
                                        :remote bob
                                        :to-recv 1)))
       (send-datagram bob "Hi" alice)
       (bordeaux-threads:join-thread (thread state))
-      (output state))))
+      (received state))))
