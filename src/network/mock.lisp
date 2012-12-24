@@ -29,11 +29,15 @@
 
 ;;; Macro to mutex-lock a provider for some body
 (defmacro with-provider-guard ((provider) &body body)
-  (let ((mutex-var (gensym "MUTEX-")))
-    `(let ((,mutex-var (get-mutex ,provider)))
-       (if ,mutex-var
-           (bordeaux-threads:with-lock-held (,mutex-var) ,@body)
-           (progn ,@body)))))
+  (let ((mutex-var (gensym "MUTEX-"))
+        (body-func (gensym "BODY-")))
+    `(flet ((,body-func ()
+              ,@body))
+        (let ((,mutex-var (get-mutex ,provider)))
+          (if ,mutex-var
+              (bordeaux-threads:with-lock-held (,mutex-var)
+                (,body-func))
+              (,body-func))))))
 
 ;;; Function to determine if something is a valid port
 (defun portp (port)
@@ -81,8 +85,8 @@
   (assert (portp port))
   (let ((address (make-remote-address network-provider "localhost" port)))
     (with-provider-guard (network-provider)
-      (ensure-queue (get-queues network-provider) address))
-    (setf (socket-network-provider address) network-provider)
+      (ensure-queue (get-queues network-provider) address)
+      (setf (socket-network-provider address) network-provider))
     address))
 
 ;;; Method to send a datagram with a socket

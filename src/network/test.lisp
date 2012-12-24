@@ -128,7 +128,7 @@
   (cont state))
 
 (defmethod recv ((state send-recv-state))
-  (with-slots (to-recv counter local received) state
+  (with-slots (to-recv local received) state
     (multiple-value-bind (msg from) (wait-for-message local)
       (when from
         (setf received (append received (list (list msg from))))
@@ -156,23 +156,48 @@
     (setf (thread state) thread)
     state))
 
+(defmacro with-thread ((&key local remote (to-send 0) (to-recv 0)) &body body)
+  (let ((state (gensym "STATE-")))
+    `(let ((,state (run-send-recv-thread :local ,local
+                                         :remote ,remote
+                                         :to-send ,to-send
+                                         :to-recv ,to-recv)))
+       (unwind-protect
+            (progn
+              ,@body)
+         (bordeaux-threads:join-thread (thread ,state)))
+       (received ,state))))
+
 #+thread-support
 (nst:def-test-group mock-mt-socket-tests (mock-mt-network-provider
                                           alice-and-bob)
   (nst:def-test mock-mt-recv-one-message (:values (:equal "Hi 1")
                                                   (:equal alice))
-    (let ((state (run-send-recv-thread :local alice
-                                       :remote bob
-                                       :to-send 1)))
-      (unwind-protect
-          (wait-for-message bob)
-        (bordeaux-threads:join-thread (thread state)))))
+    (let (msg from)
+      (with-thread (:local alice :remote bob :to-send 1)
+        (multiple-value-bind (-msg -from) (wait-for-message bob)
+          (setf msg -msg
+                from -from)))
+      (values msg from)))
   
   (nst:def-test mock-mt-send-one-message (:seq (:seq (:equal "Hi")
                                                      (:true)))
-    (let ((state (run-send-recv-thread :local alice
-                                       :remote bob
-                                       :to-recv 1)))
-      (send-datagram bob "Hi" alice)
-      (bordeaux-threads:join-thread (thread state))
-      (received state))))
+    (with-thread (:local alice :remote bob :to-recv 1)
+      (send-datagram bob "Hi" alice)))
+  
+  (nst:def-test mock-mt-send-many-messages (:each (:seq (:regex "^Hi \\d+$")
+                                                        (:true)))
+    (let ((msg-count 1000))
+      (with-thread (:local alice :remote bob :to-recv msg-count)
+        (dotimes (cntr msg-count)
+          (send-datagram bob (format nil "Hi ~A" cntr) alice)))))
+  
+  (nst:def-test mock-mt-send-recv-many (:each (:seq (:regex "^Hi \\d+$")
+                                                    (:true)))
+    (let ((high-count 1000)
+          (low-count  50))
+      (with-thread (:local alice :remote bob
+                    :to-send low-count :to-recv high-count)
+        (with-thread (:local bob :remote alice
+                      :to-send high-count :to-recv low-count)
+          t)))))
