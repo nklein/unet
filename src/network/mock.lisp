@@ -21,23 +21,8 @@
 ;;; Mock network provider class
 (defclass network-provider ()
   ((queues :initform (make-hash-table)
-           :reader get-queues)
-   (mutex  :initform nil
-           :initarg :mutex
-           :reader get-mutex))
+           :reader get-queues))
   (:documentation "Mock network provider class which simulates a network using queues"))
-
-;;; Macro to mutex-lock a provider for some body
-(defmacro with-provider-guard ((provider) &body body)
-  (let ((mutex-var (gensym "MUTEX-"))
-        (body-func (gensym "BODY-")))
-    `(flet ((,body-func ()
-              ,@body))
-        (let ((,mutex-var (get-mutex ,provider)))
-          (if ,mutex-var
-              (bordeaux-threads:with-lock-held (,mutex-var)
-                (,body-func))
-              (,body-func))))))
 
 ;;; Function to determine if something is a valid port
 (defun portp (port)
@@ -84,9 +69,8 @@
                                    (port integer))
   (assert (portp port))
   (let ((address (make-remote-address network-provider "localhost" port)))
-    (with-provider-guard (network-provider)
-      (ensure-queue (get-queues network-provider) address)
-      (setf (socket-network-provider address) network-provider))
+    (ensure-queue (get-queues network-provider) address)
+    (setf (socket-network-provider address) network-provider)
     address))
 
 ;;; Method to send a datagram with a socket
@@ -94,23 +78,23 @@
                           (datagram sequence)
                           (socket-address symbol))
   (let ((network-provider (socket-network-provider datagram-socket)))
-    (with-provider-guard (network-provider)
-      (bwhen (queue (find-queue (get-queues network-provider) socket-address))
-        (jpl-queues:enqueue (list datagram datagram-socket) queue)
-        t))))
+    (bwhen (queue (find-queue (get-queues network-provider) socket-address))
+      (jpl-queues:enqueue (list datagram datagram-socket) queue)
+      t)))
 
 ;;; Method to receive a datagram from a socket
 (defmethod recv-datagram ((datagram-socket symbol))
-  (let ((network-provider (socket-network-provider datagram-socket)))
-    (with-provider-guard (network-provider)
-      (let ((queue (find-queue (get-queues network-provider) datagram-socket)))
-        (if (and queue (not (jpl-queues:empty? queue)))
-            (destructuring-bind (datagram from) (jpl-queues:dequeue queue)
-              (values datagram from))
-            (values nil nil))))))
+  (let* ((network-provider (socket-network-provider datagram-socket))
+         (queue (find-queue (get-queues network-provider) datagram-socket))
+         (result (and queue
+                      (not (jpl-queues:empty? queue))
+                      (jpl-queues:dequeue queue))))
+    (if result
+        (destructuring-bind (datagram from) result
+          (values datagram from))
+        (values nil nil))))
 
 ;;; Method to close a datagram socket
-(defmethod close-socket (datagram-socket)
+(defmethod close-socket ((datagram-socket symbol))
   (let ((network-provider (socket-network-provider datagram-socket)))
-    (with-provider-guard (network-provider)
-      (remove-queue (get-queues network-provider) datagram-socket))))
+    (remove-queue (get-queues network-provider) datagram-socket)))

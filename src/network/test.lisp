@@ -56,7 +56,9 @@
     (:documentation "Defines a socket called ALICE on port 31337 and another called BOB on port 54321"
      :special (provider))
   (alice (create-datagram-socket provider 31337))
-  (bob (create-datagram-socket provider 54321)))
+  (alice-addr (make-remote-address provider "localhost" 31337))
+  (bob (create-datagram-socket provider 54321))
+  (bob-addr (make-remote-address provider "localhost" 54321)))
 
 (nst:def-test-group mock-create-datagram-socket-tests (mock-network-provider
                                                        alice-and-bob)
@@ -69,18 +71,18 @@
   (nst:def-test mock-single-message (:values (:equal "Hello")
                                              (:equal alice))
     (progn
-      (send-datagram alice "Hello" bob)
+      (send-datagram alice "Hello" bob-addr)
       (recv-datagram bob)))
   
   (nst:def-test mock-only-one-message (:values (:eq nil) (:eq nil))
     (progn
-      (send-datagram alice "Hello" bob)
+      (send-datagram alice "Hello" bob-addr)
       (recv-datagram bob)
       (recv-datagram bob)))
   
   (nst:def-test mock-no-messages-after-close (:values (:eq nil) (:eq nil))
     (progn
-      (send-datagram alice "Hello" bob)
+      (send-datagram alice "Hello" bob-addr)
       (close-socket bob)
       (recv-datagram bob))))
 
@@ -88,8 +90,9 @@
 #+thread-support
 (nst:def-fixtures mock-mt-network-provider
     (:documentation "Defines a thread-safe mock network provider called PROVIDER")
-  (provider (make-instance 'unet-network-mock:network-provider
-                           :mutex (bordeaux-threads:make-lock))))
+  (mock-provider (make-instance 'unet-network-mock:network-provider))
+  (provider (make-instance 'unet-network-locking:network-provider
+                           :provider mock-provider)))
 
 #+thread-support
 (nst:def-test-group mock-mt-make-provider-tests (mock-mt-network-provider)
@@ -97,12 +100,11 @@
     provider))
 
 (defun wait-for-message (local)
-  #+thread-support
-  (bordeaux-threads:thread-yield)
-  (multiple-value-bind (msg from) (recv-datagram local)
-    (if from
-        (values msg from)
-        (wait-for-message local))))
+  (loop :do (progn
+              (multiple-value-bind (msg from) (recv-datagram local)
+                (when from
+                  (return-from nil (values msg from))))
+              #+thread-support (bordeaux-threads:thread-yield))))
 
 ;;; Define a class used to create a thread that does some number of
 ;;; sends and receives.
@@ -115,35 +117,33 @@
    (thread :accessor thread)
    (received :accessor received :initform nil)))
 
-(defgeneric send (state))
-(defgeneric recv (state))
-(defgeneric cont (state))
+(defgeneric send (state)
+  (:method ((state send-recv-state))
+    (with-slots (to-send counter local remote) state
+      (when (plusp to-send)
+        (let ((msg (format nil "Hi ~A" counter)))
+          (send-datagram local msg remote))
+        (decf to-send)))))
 
-(defmethod send ((state send-recv-state))
-  (with-slots (to-send counter local remote) state
-    (when (plusp to-send)
-      (let ((msg (format nil "Hi ~A" counter)))
-        (send-datagram local msg remote))
-      (decf to-send)))
-  (cont state))
+(defgeneric recv (state)
+  (:method ((state send-recv-state))
+    (with-slots (to-recv local received) state
+      (when (plusp to-recv)
+        (multiple-value-bind (msg from) (wait-for-message local)
+          (when from
+            (setf received (append received (list (list msg from))))
+            (decf to-recv)))))))
 
-(defmethod recv ((state send-recv-state))
-  (with-slots (to-recv local received) state
-    (multiple-value-bind (msg from) (wait-for-message local)
-      (when from
-        (setf received (append received (list (list msg from))))
-        (decf to-recv))))
-  (cont state))
-
-(defmethod cont ((state send-recv-state))
-  (with-slots (counter to-send to-recv) state
-    (unless (and (zerop to-send)
-                 (zerop to-recv))
-      #+thread-support
-      (bordeaux-threads:thread-yield)
-      (case (mod (incf counter) 3)
-        ((0 1) (send state))
-        (2 (recv state))))))
+(defgeneric cont (state)
+  (:method ((state send-recv-state))
+    (with-slots (counter to-send to-recv) state
+      (loop :while (or (plusp to-send)
+                       (plusp to-recv))
+         :do (progn
+               (case (mod (incf counter) 3)
+                 ((0 1) (send state))
+                 (2 (recv state)))
+               #+thread-support (bordeaux-threads:thread-yield))))))
 
 #+thread-support
 (defun run-send-recv-thread (&key local remote (to-send 0) (to-recv 0))
@@ -172,32 +172,32 @@
 (nst:def-test-group mock-mt-socket-tests (mock-mt-network-provider
                                           alice-and-bob)
   (nst:def-test mock-mt-recv-one-message (:values (:equal "Hi 1")
-                                                  (:equal alice))
+                                                  (:true))
     (let (msg from)
-      (with-thread (:local alice :remote bob :to-send 1)
-        (multiple-value-bind (-msg -from) (wait-for-message bob)
-          (setf msg -msg
-                from -from)))
+      (with-thread (:local alice :remote bob-addr :to-send 1)
+        (multiple-value-bind (new-msg new-from) (wait-for-message bob)
+          (setf msg new-msg
+                from new-from)))
       (values msg from)))
   
   (nst:def-test mock-mt-send-one-message (:seq (:seq (:equal "Hi")
                                                      (:true)))
-    (with-thread (:local alice :remote bob :to-recv 1)
-      (send-datagram bob "Hi" alice)))
-  
+    (with-thread (:local alice :remote bob-addr :to-recv 1)
+      (send-datagram bob "Hi" alice-addr)))
+
   (nst:def-test mock-mt-send-many-messages (:each (:seq (:regex "^Hi \\d+$")
                                                         (:true)))
-    (let ((msg-count 1000))
-      (with-thread (:local alice :remote bob :to-recv msg-count)
+    (let ((msg-count 100))
+      (with-thread (:local alice :remote bob-addr :to-recv msg-count)
         (dotimes (cntr msg-count)
-          (send-datagram bob (format nil "Hi ~A" cntr) alice)))))
-  
+          (send-datagram bob (format nil "Hi ~A" cntr) alice-addr)))))
+
   (nst:def-test mock-mt-send-recv-many (:each (:seq (:regex "^Hi \\d+$")
                                                     (:true)))
-    (let ((high-count 1000)
-          (low-count  50))
-      (with-thread (:local alice :remote bob
+    (let ((high-count 40)
+          (low-count  20))
+      (with-thread (:local alice :remote bob-addr
                     :to-send low-count :to-recv high-count)
-        (with-thread (:local bob :remote alice
+        (with-thread (:local bob :remote alice-addr
                       :to-send high-count :to-recv low-count)
           t)))))

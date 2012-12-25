@@ -23,6 +23,8 @@
                      (:file "network/api")
                      (:file "network/mock"
                         :depends-on ("network/api"))
+                     (:file "network/locking"
+                        :depends-on ("network/api"))
                      
                      ;;; other system files
                      (:static-file "README.mkdn")
