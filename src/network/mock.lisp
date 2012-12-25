@@ -18,6 +18,8 @@
 ;;; I love Hannah.
 (in-package :unet-network-mock)
 
+(defparameter +queue-capacity+ 100)
+
 ;;; Mock network provider class
 (defclass network-provider ()
   ((queues :initform (make-hash-table)
@@ -43,7 +45,8 @@
 (defun ensure-queue (queues address)
   (or (find-queue queues address)
       (setf (gethash address queues)
-            (make-instance 'jpl-queues:bounded-fifo-queue :capacity 20))))
+            (make-instance 'jpl-queues:lossy-bounded-fifo-queue
+                           :capacity +queue-capacity+))))
 
 (defun remove-queue (queues address)
   (remhash address queues))

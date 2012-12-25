@@ -90,6 +90,7 @@
 #+thread-support
 (nst:def-fixtures mock-mt-network-provider
     (:documentation "Defines a thread-safe mock network provider called PROVIDER")
+  (capacity unet-network-mock::+queue-capacity+)
   (mock-provider (make-instance 'unet-network-mock:network-provider))
   (provider (make-instance 'unet-network-locking:network-provider
                            :provider mock-provider)))
@@ -187,17 +188,21 @@
 
   (nst:def-test mock-mt-send-many-messages (:each (:seq (:regex "^Hi \\d+$")
                                                         (:true)))
-    (let ((msg-count 100))
-      (with-thread (:local alice :remote bob-addr :to-recv msg-count)
-        (dotimes (cntr msg-count)
-          (send-datagram bob (format nil "Hi ~A" cntr) alice-addr)))))
+    (with-thread (:local alice :remote bob-addr :to-recv capacity)
+      (dotimes (cntr capacity)
+        (send-datagram bob (format nil "Hi ~A" cntr) alice-addr))))
 
   (nst:def-test mock-mt-send-recv-many (:each (:seq (:regex "^Hi \\d+$")
                                                     (:true)))
-    (let ((high-count 40)
-          (low-count  20))
-      (with-thread (:local alice :remote bob-addr
-                    :to-send low-count :to-recv high-count)
-        (with-thread (:local bob :remote alice-addr
-                      :to-send high-count :to-recv low-count)
-          t)))))
+    (with-thread (:local alice :remote bob-addr
+                  :to-send capacity :to-recv capacity)
+      (with-thread (:local bob :remote alice-addr
+                    :to-send capacity :to-recv capacity)
+        t)))
+  
+  (nst:def-test mock-mt-send-recv-perf (:perf :ms 100)
+    (with-thread (:local alice :remote bob-addr
+                  :to-send capacity :to-recv capacity)
+      (with-thread (:local bob :remote alice-addr
+                    :to-send capacity :to-recv capacity)
+        t))))
