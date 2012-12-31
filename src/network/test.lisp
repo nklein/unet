@@ -200,7 +200,7 @@
                     :to-send capacity :to-recv capacity)
         t)))
   
-  (nst:def-test mock-mt-send-recv-perf (:perf :ms 100)
+  (nst:def-test mock-mt-send-recv-perf (:perf :ms 10)
     (with-thread (:local alice :remote bob-addr
                   :to-send 100 :to-recv (min 100 capacity))
       (with-thread (:local bob :remote alice-addr
