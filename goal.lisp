@@ -10,10 +10,30 @@
   (defvar *channel-components* (make-hash-table)))
 
 (defclass channel-component ()
-  ((channel-slots :accessor slots-of
+  ((channel-slots :accessor channel-slots-of
                   :initform nil)
-   (channel-initargs :accessor initargs-of
-                     :initform nil)))
+   (channel-initargs :accessor channel-initargs-of
+                     :initform nil)
+   (recipient-slots :accessor recipient-slots-of
+                    :initform nil)
+   (recipient-initargs :accessor recipient-initargs-of
+                       :initform nil)
+   (packet-slots :accessor packet-slots-of
+                 :initform nil)
+   (packet-initargs :accessor packet-initargs-of
+                    :initform nil)
+   (encoder-args :accessor encoder-args-of
+                 :initform nil)
+   (encoder-body :accessor encoder-body-of
+                 :initform nil)
+   (decoder-args :accessor decoder-args-of
+                 :initform nil)
+   (decoder-body :accessor decoder-body-of
+                 :initform nil)
+   (fragmenter-args :accessor fragmenter-args-of
+                    :initform nil)
+   (fragmenter-body :accessor fragmenter-body-of
+                    :initform nil)))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun ensure-component (name)
@@ -29,29 +49,66 @@
        :unless (fboundp (cadr pair))
        :collecting `(defgeneric ,(cadr pair) (instance)))))
 
+(defmacro %add-slot-forms (name slots rest
+                           &key slot-accessor initargs-accessor)
+  (let ((component (gensym "COMPONENT-VAR-")))
+    `(let ((,component (gensym "COMPONENT-")))
+       `(eval-when (:compile-toplevel :load-toplevel :execute)
+          (let ((,,component (ensure-component ',,name)))
+            ,@(reduce #'append (mapcar #'ensure-slot-generics ,slots))
+            (setf (,,slot-accessor ,,component) ',slots
+                  ,@(awhen (rest (assoc :default-initargs ,rest))
+                           `((,,initargs-accessor ,,component) ',it))))))))
+
 (defmacro defchannel-slots (name slots &rest rest)
+  (%add-slot-forms name slots rest
+                   :slot-accessor 'channel-slots-of
+                   :initargs-accessor 'channel-initargs-of))
+
+(defmacro defchannel-recipient-slots (name slots &rest rest)
+  (%add-slot-forms name slots rest
+                   :slot-accessor 'recipient-slots-of
+                   :initargs-accessor 'recipient-initargs-of))
+
+(defmacro defchannel-packet-slots (name slots &rest rest)
+  (%add-slot-forms name slots rest
+                   :slot-accessor 'packet-slots-of
+                   :initargs-accessor 'packet-initargs-of))
+
+(defmacro %add-function-form (name args body &key args-of body-of)
+  (let ((component (gensym "COMPONENT-VAR-")))
+    `(let ((,component (gensym "COMPONENT-")))
+       `(eval-when (:compile-toplevel :load-toplevel :execute)
+          (let ((,,component (ensure-component ',,name)))
+            (setf (,,args-of ,,component) ',,args
+                  (,,body-of ,,component) ',,body))))))
+
+(defmacro defchannel-fragmenter (name (channel recipient payload) &body body)
+  (%add-function-form name `(,channel ,recipient ,payload) body
+                      :args-of 'fragmenter-args-of
+                      :body-of 'fragmenter-body-of))
+
+(defmacro defchannel-encoder (name (channel recipient payload) &body body)
+  (%add-function-form name `(,channel ,recipient ,payload) body
+                      :args-of 'encoder-args-of
+                      :body-of 'encoder-body-of))
+
+(defmacro defchannel-encoder (name (channel recipient payload) &body body)
   (let ((component (gensym "COMPONENT-")))
     `(eval-when (:compile-toplevel :load-toplevel :execute)
        (let ((,component (ensure-component ',name)))
-         ,@(reduce #'append (mapcar #'ensure-slot-generics slots))
-         (setf (slots-of ,component) ',slots
-               ,@(awhen (rest (assoc :default-initargs rest))
-                   `((initargs-of ,component) ',it)))))))
-
-(defmacro defchannel-recipient-slots (name slots &rest rest)
-  (declare (ignore name rest))
-  `(progn ,@(reduce #'append (mapcar #'ensure-slot-generics slots))))
-
-(defmacro defchannel-packet-slots (name slots &rest rest)
-  (declare (ignore name rest))
-  `(progn ,@(reduce #'append (mapcar #'ensure-slot-generics slots))))
-
-(defmacro defchannel-encoder (name (channel recipient payload) &body body)
-  (declare (ignore name channel recipient payload body)))
+         (setf (encoder-args-of ,component) '(,channel ,recipient ,payload)
+               (encoder-body-of ,component) ',body)))))
 
 (defmacro defchannel-decoder (name (channel recipient packet) &body body)
-  (declare (ignore name channel recipient packet body)))
+  (%add-function-form name `(,channel ,recipient ,packet) body
+                      :args-of 'decoder-args-of
+                      :body-of 'decoder-body-of))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; example of use
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defchannel-slots ordered
     ((max-sequence-number :initarg :max-sequence-number
                           :reader max-sequence-number-of))
@@ -60,6 +117,9 @@
 (defchannel-recipient-slots ordered
     ((ordered-sequence-number :accessor ordered-sequence-number-of
                               :initform 0)))
+
+(defchannel-packet-slots ordered
+    ((ordered-sequence-number :accessor ordered-sequence-number-of)))
 
 (defun next-ordered-sequence-number (channel recipient)
   (let ((n (1+ (ordered-sequence-number-of recipient))))
