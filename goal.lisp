@@ -6,9 +6,6 @@
 
 (in-package :channel-sample)
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defvar *channel-components* (make-hash-table)))
-
 (defclass channel-component ()
   ((channel-slots :accessor channel-slots-of
                   :initform nil)
@@ -38,9 +35,9 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun ensure-component (name)
     (acond
-      ((gethash name *channel-components*) it)
+      ((get name 'channel-component-info) it)
       (t (let ((n (make-instance 'channel-component)))
-           (setf (gethash name *channel-components*) n))))))
+           (setf (get name 'channel-component-info) n))))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun ensure-slot-generics (slot)
@@ -105,13 +102,130 @@
                       :args-of 'decoder-args-of
                       :body-of 'decoder-body-of))
 
+(defmacro defchannel (name (&rest component-names))
+  ;; XXX - finish this
+  `(progn
+     (%create-decoder ,name ,component-names)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Target code generation...
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Given the following:
+(defchannel-packet-slots d1 ((d1-info :accessor d1-info-of)))
+(defchannel-encoder d1 (chl1 rcpt1 pkt1)
+  (serialize :d1 :blah-blah-blah-1))
+(defchannel-decoder d1 (chl1 rcpt1 pkt1)
+  (setf (d1-info-of pkt1) (unserialize :d1)))
+
+(defchannel-packet-slots d2 ((d2-info :accessor d2-info-of)))
+(defchannel-encoder d2 (chl2 rcpt2 pkt2)
+  (serialize :d2 :blah-blah-blah-2))
+(defchannel-decoder d2 (chl2 rcpt2 pkt2)
+  (setf (d2-info-of pkt2) (unserialize :d2)))
+
+;;; Then we want this form:
+(defchannel d1-d2-channel (d1 d2))
+;;; To produce code like this:
+(defclass d1-d2-channel (channel)
+  ())
+(defclass d1-d2-channel-recipient (channel-recipient)
+  ())
+(defclass d1-d2-channel-packet (channel-packet)
+  ((d1-info :accessor d1-info-of)
+   (d2-info :accessor d2-info-of)))
+
+(defchannel-packet-slots channel
+  ((recipient :accessor recipient-of)
+   (buffer :accessor buffer-of
+           :initform (make-array 4096
+                                 :element-type '(unsigned-byte 8)
+                                 :adjustable t
+                                 :fill-pointer 0))
+   (payload :accessor payload-of
+            :initform nil)))
+(defchannel-decoder channel (ch rc pk)
+  (setf (payload-of pk) (unserialize :payload)
+        (recipient-of rc) pk)
+  (return-packet pk))
+
+(defclass channel-packet ()
+  ((recipient :accessor recipient-of)
+   (buffer :accessor buffer-of
+           :initform (make-array 4096
+                                 :element-type '(unsigned-byte 8)
+                                 :adjustable t
+                                 :fill-pointer 0))
+   (payload :accessor payload-of
+            :initform nil)))
+
+(defmethod channel-fragmenter ((channel d1-d2-channel)
+                               (recipient d1-d2-channel-recipient)
+                               (packet d1-d2-channel-packet))
+  (declare (ignorable channel recipient))
+  (return-from channel-fragmenter (list packet)))
+
+(defun extend-symbol (symbol extension)
+  (intern (concatenate 'string (symbol-name symbol) extension)
+          (symbol-package symbol)))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun %make-decoder-flet (name)
+    (let* ((component (ensure-component name))
+           (args (decoder-args-of component))
+           (body (decoder-body-of component)))
+      `(,name (,@args)
+         (declare (ignorable ,@args))
+         ,@body))))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun %make-decoder-call (name loop-var list-of-packets channel recipient packet)
+    `(dolist (,loop-var ,list-of-packets)
+       (destructuring-bind (,recipient ,packet) ,loop-var
+         (with-buffer (buffer-of ,packet)
+           (,name ,channel ,recipient ,packet))))))
+
+(defgeneric channel-decoder (channel recipient packet))
+
+(defmacro %create-decoder (name component-names)
+  (let ((channel (gensym "CHANNEL-"))
+        (recipient (gensym "RECIPIENT-"))
+        (packet (gensym "PACKET-"))
+        (loop-var (gensym "LOOP-VAR-"))
+        (list-of-packets (gensym "LIST-OF-PACKETS-"))
+        (return-list (gensym "RETURN-LIST-")))
+    `(defmethod channel-decoder ((,channel ,name)
+                                 (,recipient ,(extend-symbol name "-RECIPIENT"))
+                                 (,packet ,(extend-symbol name "-PACKET")))
+       (let ((,list-of-packets (list (list ,recipient ,packet)))
+             (,return-list nil))
+         (flet ((insert-packet (recipient packet)
+                  (push (list recipient packet) ,list-of-packets))
+                (return-packet (packet)
+                  (push packet ,return-list))
+                (stop-decoding ()
+                  (return-from channel-decoder (nreverse ,return-list))))
+           (flet ,(mapcar #'(lambda (name)
+                              (%make-decoder-flet name))
+                          component-names)
+             ,@(mapcar #'(lambda (name)
+                           (%make-decoder-call name
+                                               loop-var
+                                               list-of-packets
+                                               channel
+                                               recipient
+                                               packet))
+                       component-names))
+           (stop-decoding))))))
+
+(%create-decoder d1-d2-channel (d1 d2 channel))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; example of use
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defchannel-slots ordered
-    ((max-sequence-number :initarg :max-sequence-number
-                          :reader max-sequence-number-of))
+  ((max-sequence-number :initarg :max-sequence-number
+                                 :reader max-sequence-number-of))
   (:default-initargs :max-sequence-number 65535))
 
 (defchannel-recipient-slots ordered
@@ -132,6 +246,7 @@
 
 (defchannel-decoder ordered (channel recipient packet)
   (setf (ordered-sequence-number-of packet) (unserialize :uint16)))
+
 
 #+notyet
 (defchannel ordered-channel (ordered))
