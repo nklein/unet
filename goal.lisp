@@ -146,7 +146,7 @@
             :initform nil)))
 (defchannel-decoder channel (ch rc pk)
   (setf (payload-of pk) (unserialize :payload)
-        (recipient-of rc) pk)
+        (recipient-of pk) rc)
   (return-packet pk))
 
 (defclass channel-packet ()
@@ -170,13 +170,21 @@
           (symbol-package symbol)))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun %make-decoder-flet (name)
+  (defun %make-decoder-local-func (channel name next)
     (let* ((component (ensure-component name))
            (args (decoder-args-of component))
            (body (decoder-body-of component)))
       `(,name (,@args)
-         (declare (ignorable ,@args))
-         ,@body))))
+         ,@(unless next
+             `((declare (ignorable ,@args))))
+         (flet ((stop-decoding ()
+                  (return-from ,name))
+                ,@(when next
+                    `((decode-next (recipient packet)
+                        (,next ,channel recipient packet)))))
+           ,@body
+           ,@(when next
+               `((decode-next ,@args))))))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun %make-decoder-call (name loop-var list-of-packets channel recipient packet)
@@ -191,8 +199,6 @@
   (let ((channel (gensym "CHANNEL-"))
         (recipient (gensym "RECIPIENT-"))
         (packet (gensym "PACKET-"))
-        (loop-var (gensym "LOOP-VAR-"))
-        (list-of-packets (gensym "LIST-OF-PACKETS-"))
         (return-list (gensym "RETURN-LIST-"))
         (channel-type name)
         (recipient-type (extend-symbol name "-RECIPIENT"))
@@ -200,30 +206,20 @@
     `(defmethod channel-decoder ((,channel ,channel-type)
                                  (,recipient ,recipient-type)
                                  (,packet ,packet-type))
-       (let ((,list-of-packets (list (list ,recipient ,packet)))
-             (,return-list nil))
-         (flet ((insert-packet (recipient packet)
-                  (check-type recipient ,recipient-type)
+       (let ((,return-list nil))
+         (flet ((return-packet (packet)
                   (check-type packet ,packet-type)
-                  (push (list recipient packet) ,list-of-packets))
-                (return-packet (packet)
-                  (check-type packet ,packet-type)
-                  (push packet ,return-list))
-                (stop-decoding ()
-                  (return-from channel-decoder (nreverse ,return-list))))
-           (flet ,(mapcar #'(lambda (name)
-                              (%make-decoder-flet name))
-                          component-names)
-             ,@(mapcar #'(lambda (name)
-                           (%make-decoder-call name
-                                               loop-var
-                                               list-of-packets
-                                               channel
-                                               recipient
-                                               packet))
-                       component-names))
-           (stop-decoding))))))
+                  (push packet ,return-list)))
+           (labels ,(loop :for prev = nil :then name
+                          :for name :in (reverse component-names)
+                          :collecting (%make-decoder-local-func channel
+                                                                name
+                                                                prev))
+             (,(first component-names) ,channel ,recipient ,packet)
+             (nreverse ,return-list)))))))
 
+(defclass d1-d2-channel-recipient () ())
+(defclass d1-d2-channel-packet () ())
 (%create-decoder d1-d2-channel (d1 d2 channel))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
