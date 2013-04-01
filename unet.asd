@@ -8,7 +8,7 @@
   :author "Patrick Stein <pat@nklein.com>"
   :encoding :utf-8
   :licence "MIT"
-  :depends-on ("userial" "cl-log" "jpl-queues")
+  :depends-on ("userial" "anaphora" "cl-log" "jpl-queues")
   :components
     ((:module "src"
         :components (;;; logging functions
@@ -18,14 +18,26 @@
                      (:file "logging/api"
                         :depends-on ("logging/base"
                                      "logging/cl-log"))
-                     
+
                      ;;; network functions
                      (:file "network/api")
                      (:file "network/mock"
                         :depends-on ("network/api"))
                      (:file "network/locking"
                         :depends-on ("network/api"))
-                     
+
+                     ;;; channel definitions
+                     (:file "channel/component")
+                     (:file "channel/base"
+                        :depends-on ("channel/component"))
+                     (:file "channel/channel"
+                        :depends-on ("channel/component"
+                                     "channel/base"))
+                     (:file "channel/api"
+                        :depends-on ("channel/component"
+                                     "channel/base"
+                                     "channel/channel"))
+
                      ;;; other system files
                      (:static-file "README.mkdn")
                      (:static-file "LICENSE.txt")))))

@@ -111,6 +111,7 @@
 ;;; Target code generation...
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(use-package :unet-channel-component)
 ;;; Given the following:
 (defchannel-packet-slots d1 ((d1-info :accessor d1-info-of)))
 (defchannel-encoder d1 (chl1 rcpt1 pkt1)
